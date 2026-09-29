@@ -1,0 +1,298 @@
+[
+  {
+    "id": "S01-tripgenie",
+    "url": "https://www.trip.com/newsroom/tripgenie-new-features-2/",
+    "fetched_at": "2026-09-29T11:29:10.104755+00:00",
+    "status": 200,
+    "final_url": "https://www.trip.com/newsroom/tripgenie-new-features-2/",
+    "sha256": "66e0889d6465db1bce97f8dcc9406867a2e9069db9f8072a92204a94b0bede54",
+    "ok": true,
+    "text_path": "sources\\S01-tripgenie.txt",
+    "characters": 4308
+  },
+  {
+    "id": "S02-pitravel",
+    "url": "https://r.app.xiaomi.com/details?id=com.chaochaoshishi.slytherin",
+    "fetched_at": "2026-09-29T11:29:10.105771+00:00",
+    "ok": false,
+    "error": "<urlopen error _ssl.c:1011: The handshake operation timed out>"
+  },
+  {
+    "id": "S03-mindtrip",
+    "url": "https://mindtrip.ai/",
+    "fetched_at": "2026-09-29T11:29:10.107523+00:00",
+    "status": 200,
+    "final_url": "https://mindtrip.ai/",
+    "sha256": "b208cc245a7d3f3b83d5cc47f810ad35de726996c51923bef1bb67f5cd53e051",
+    "ok": true,
+    "text_path": "sources\\S03-mindtrip.txt",
+    "characters": 4673
+  },
+  {
+    "id": "S04-factcheck",
+    "url": "https://developers.google.com/fact-check/tools/api/reference/rest/v1alpha1/claims/search",
+    "fetched_at": "2026-09-29T11:29:10.107958+00:00",
+    "status": 200,
+    "final_url": "https://developers.google.com/fact-check/tools/api/reference/rest/v1alpha1/claims/search",
+    "sha256": "4bb76aba44e0690b9d251749719dee2b492e0e700f0700c76fd2a0fa4ebd0dcd",
+    "ok": true,
+    "text_path": "sources\\S04-factcheck.txt",
+    "characters": 4497
+  },
+  {
+    "id": "S05-fullfact",
+    "url": "https://fullfact.org/ai/",
+    "fetched_at": "2026-09-29T11:29:10.108385+00:00",
+    "status": 200,
+    "final_url": "https://fullfact.org/ai/",
+    "sha256": "28791d41e2dbb2071d0946d0b023c0c53c95702c02e9c83cc96b3d3861bb8f1e",
+    "ok": true,
+    "text_path": "sources\\S05-fullfact.txt",
+    "characters": 9072
+  },
+  {
+    "id": "S06-claimbuster",
+    "url": "https://idir.uta.edu/claimbuster/",
+    "fetched_at": "2026-09-29T11:29:10.108877+00:00",
+    "ok": false,
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1028)>"
+  },
+  {
+    "id": "S07-safe",
+    "url": "https://raw.githubusercontent.com/google-deepmind/long-form-factuality/main/README.md",
+    "fetched_at": "2026-09-29T11:29:11.443102+00:00",
+    "status": 200,
+    "final_url": "https://raw.githubusercontent.com/google-deepmind/long-form-factuality/main/README.md",
+    "sha256": "c99dddd11d49e4dad482f031be3a191831e1e4f9faabf230b65b71c0471c64c1",
+    "ok": true,
+    "text_path": "sources\\S07-safe.txt",
+    "characters": 4443
+  },
+  {
+    "id": "S08-wikichat",
+    "url": "https://raw.githubusercontent.com/stanford-oval/WikiChat/main/README.md",
+    "fetched_at": "2026-09-29T11:29:11.753753+00:00",
+    "status": 200,
+    "final_url": "https://raw.githubusercontent.com/stanford-oval/WikiChat/main/README.md",
+    "sha256": "c994c3e5a1e2d1a2aeff2bcd553fea96b3c42d79d7e2223178d322be349309f4",
+    "ok": true,
+    "text_path": "sources\\S08-wikichat.txt",
+    "characters": 24002
+  },
+  {
+    "id": "S09-defame",
+    "url": "https://raw.githubusercontent.com/multimodal-ai-lab/DEFAME/main/README.md",
+    "fetched_at": "2026-09-29T11:29:12.358804+00:00",
+    "status": 200,
+    "final_url": "https://raw.githubusercontent.com/multimodal-ai-lab/DEFAME/main/README.md",
+    "sha256": "c5611faac1d3cbb1e10b61bb9cbc25842743a6fd7de486f4d32134cbc7b57c96",
+    "ok": true,
+    "text_path": "sources\\S09-defame.txt",
+    "characters": 12638
+  },
+  {
+    "id": "S10-gptresearcher",
+    "url": "https://raw.githubusercontent.com/assafelovic/gpt-researcher/master/README.md",
+    "fetched_at": "2026-09-29T11:29:12.497815+00:00",
+    "status": 200,
+    "final_url": "https://raw.githubusercontent.com/assafelovic/gpt-researcher/master/README.md",
+    "sha256": "9f8cb53ece3fd00740c3a5cf759406547fe49c8b5d2813201ded8bd3db05e1d1",
+    "ok": true,
+    "text_path": "sources\\S10-gptresearcher.txt",
+    "characters": 16761
+  },
+  {
+    "id": "S11-perplexica",
+    "url": "https://raw.githubusercontent.com/ItzCrazyKns/Perplexica/master/README.md",
+    "fetched_at": "2026-09-29T11:29:12.653579+00:00",
+    "status": 200,
+    "final_url": "https://raw.githubusercontent.com/ItzCrazyKns/Perplexica/master/README.md",
+    "sha256": "5d534fafeb1e3d1355751e82241b74ab6c5e3d89561e98178512a704dba28268",
+    "ok": true,
+    "text_path": "sources\\S11-perplexica.txt",
+    "characters": 12915
+  },
+  {
+    "id": "S12-perplexica-package",
+    "url": "https://raw.githubusercontent.com/ItzCrazyKns/Perplexica/master/package.json",
+    "fetched_at": "2026-09-29T11:29:12.956723+00:00",
+    "status": 200,
+    "final_url": "https://raw.githubusercontent.com/ItzCrazyKns/Perplexica/master/package.json",
+    "sha256": "5428842dddbfc341c969b64f56d4ea8f45ee291f0f178afb0dbd0e61243f728a",
+    "ok": true,
+    "text_path": "sources\\S12-perplexica-package.txt",
+    "characters": 2268
+  },
+  {
+    "id": "S13-gptresearcher-pyproject",
+    "url": "https://raw.githubusercontent.com/assafelovic/gpt-researcher/master/pyproject.toml",
+    "fetched_at": "2026-09-29T11:29:13.399796+00:00",
+    "status": 200,
+    "final_url": "https://raw.githubusercontent.com/assafelovic/gpt-researcher/master/pyproject.toml",
+    "sha256": "dd3452593e2ce8301493a8838576ccecbc19c42c13ca641b7ce5aa0643b1b22e",
+    "ok": true,
+    "text_path": "sources\\S13-gptresearcher-pyproject.txt",
+    "characters": 6280
+  },
+  {
+    "id": "S14-wikichat-pyproject",
+    "url": "https://raw.githubusercontent.com/stanford-oval/WikiChat/main/pyproject.toml",
+    "fetched_at": "2026-09-29T11:29:13.400967+00:00",
+    "ok": false,
+    "error": "HTTP Error 404: Not Found"
+  },
+  {
+    "id": "S15-langgraph",
+    "url": "https://docs.langchain.com/oss/python/langgraph/overview",
+    "fetched_at": "2026-09-29T11:29:13.403531+00:00",
+    "status": 200,
+    "final_url": "https://docs.langchain.com/oss/python/langgraph/overview",
+    "sha256": "8b121594d3df8ae2dd5e16dd7320920730d83d69427af72bdec4e9068a975dbd",
+    "ok": true,
+    "text_path": "sources\\S15-langgraph.txt",
+    "characters": 7182
+  },
+  {
+    "id": "S16-langgraph-durable",
+    "url": "https://docs.langchain.com/oss/python/langgraph/durable-execution",
+    "fetched_at": "2026-09-29T11:29:13.970149+00:00",
+    "status": 200,
+    "final_url": "https://docs.langchain.com/oss/python/langgraph/persistence",
+    "sha256": "113836765e585d0d1e038e4f55a7b03846f733c479409ac65b7664d00359224d",
+    "ok": true,
+    "text_path": "sources\\S16-langgraph-durable.txt",
+    "characters": 5479
+  },
+  {
+    "id": "S17-dify",
+    "url": "https://raw.githubusercontent.com/langgenius/dify/main/README.md",
+    "fetched_at": "2026-09-29T11:29:14.198792+00:00",
+    "status": 200,
+    "final_url": "https://raw.githubusercontent.com/langgenius/dify/main/README.md",
+    "sha256": "afce272cb7afce7505843406d36c661d9b4449045379d14aade0a885bf17fc51",
+    "ok": true,
+    "text_path": "sources\\S17-dify.txt",
+    "characters": 12150
+  },
+  {
+    "id": "S18-dify-license",
+    "url": "https://raw.githubusercontent.com/langgenius/dify/main/LICENSE",
+    "fetched_at": "2026-09-29T11:29:14.349950+00:00",
+    "status": 200,
+    "final_url": "https://raw.githubusercontent.com/langgenius/dify/main/LICENSE",
+    "sha256": "232cf91474932d5110ed304e53b6b742a58463857c571fae803fdf2ac36d7bb3",
+    "ok": true,
+    "text_path": "sources\\S18-dify-license.txt",
+    "characters": 1800
+  },
+  {
+    "id": "S19-gaode-route",
+    "url": "https://lbs.amap.com/api/webservice/guide/api/newroute",
+    "fetched_at": "2026-09-29T11:29:15.106360+00:00",
+    "status": 200,
+    "final_url": "https://lbs.amap.com/api/webservice/guide/api/newroute",
+    "sha256": "cb10bf6df3634073b1a98052a8c536ae66cc5202134e4d433264d0d0933cfd47",
+    "ok": true,
+    "text_path": "sources\\S19-gaode-route.txt",
+    "characters": 15997
+  },
+  {
+    "id": "S20-gaode-poi",
+    "url": "https://lbs.amap.com/api/webservice/guide/api-advanced/newpoisearch",
+    "fetched_at": "2026-09-29T11:29:15.321742+00:00",
+    "status": 200,
+    "final_url": "https://lbs.amap.com/api/webservice/guide/api-advanced/newpoisearch",
+    "sha256": "6bb09a876e08af1df1c87aaaa45700f97030705f8ab94b199e3986d03a2d8316",
+    "ok": true,
+    "text_path": "sources\\S20-gaode-poi.txt",
+    "characters": 17289
+  },
+  {
+    "id": "S21-qwen-vl",
+    "url": "https://help.aliyun.com/zh/model-studio/vision",
+    "fetched_at": "2026-09-29T11:29:15.322165+00:00",
+    "status": 200,
+    "final_url": "https://help.aliyun.com/zh/model-studio/vision",
+    "sha256": "1ae138356166443cb1a913040d79dbe043972767b26a60290bab85afceb5b365",
+    "ok": true,
+    "text_path": "sources\\S21-qwen-vl.txt",
+    "characters": 104606
+  },
+  {
+    "id": "S22-qwen-structured",
+    "url": "https://help.aliyun.com/zh/model-studio/qwen-structured-output",
+    "fetched_at": "2026-09-29T11:29:15.797538+00:00",
+    "status": 200,
+    "final_url": "https://help.aliyun.com/zh/model-studio/qwen-structured-output",
+    "sha256": "3db50c45c69bac18341121a627cade8f595d11d558b5248795c0c2a16504efc4",
+    "ok": true,
+    "text_path": "sources\\S22-qwen-structured.txt",
+    "characters": 49624
+  },
+  {
+    "id": "S23-tavily-search",
+    "url": "https://docs.tavily.com/documentation/api-reference/endpoint/search",
+    "fetched_at": "2026-09-29T11:29:17.421872+00:00",
+    "status": 200,
+    "final_url": "https://docs.tavily.com/documentation/api-reference/endpoint/search",
+    "sha256": "55f455cfd4848fb3137fb6d39b7c7ad864362e28ae2a37cbfa48e14487051132",
+    "ok": true,
+    "text_path": "sources\\S23-tavily-search.txt",
+    "characters": 28816
+  },
+  {
+    "id": "S24-tavily-pricing",
+    "url": "https://docs.tavily.com/documentation/api-credits",
+    "fetched_at": "2026-09-29T11:29:19.136115+00:00",
+    "status": 200,
+    "final_url": "https://docs.tavily.com/documentation/api-credits",
+    "sha256": "864e2aca98570d841dc9ba609a09d43888d95a940c5ce1bee38be5c6a6e709ce",
+    "ok": true,
+    "text_path": "sources\\S24-tavily-pricing.txt",
+    "characters": 3702
+  },
+  {
+    "id": "S25-firecrawl",
+    "url": "https://raw.githubusercontent.com/firecrawl/firecrawl/main/README.md",
+    "fetched_at": "2026-09-29T11:29:20.972225+00:00",
+    "status": 200,
+    "final_url": "https://raw.githubusercontent.com/firecrawl/firecrawl/main/README.md",
+    "sha256": "a5c4aa0d637d739818486995f789bde3103e8b1e658c481f064c0020e9579543",
+    "ok": true,
+    "text_path": "sources\\S25-firecrawl.txt",
+    "characters": 25460
+  },
+  {
+    "id": "S26-averitec",
+    "url": "https://raw.githubusercontent.com/MichSchli/AVeriTeC/main/README.md",
+    "fetched_at": "2026-09-29T11:29:21.906977+00:00",
+    "status": 200,
+    "final_url": "https://raw.githubusercontent.com/MichSchli/AVeriTeC/main/README.md",
+    "sha256": "8e1f5bff76c14672de04987fcaa6a0fcecfbb493f4c2b6c8f1c3443d91989fe5",
+    "ok": true,
+    "text_path": "sources\\S26-averitec.txt",
+    "characters": 4771
+  },
+  {
+    "id": "S27-qwen-price",
+    "url": "https://help.aliyun.com/zh/model-studio/model-pricing",
+    "fetched_at": "2026-09-29T11:29:23.082265+00:00",
+    "status": 200,
+    "final_url": "https://help.aliyun.com/zh/model-studio/model-pricing",
+    "sha256": "a60280d832215beb3b7b67999effc76dd9f7a9f4ec3fa46b4cf70bb5297b7afb",
+    "ok": true,
+    "text_path": "sources\\S27-qwen-price.txt",
+    "characters": 104057
+  },
+  {
+    "id": "S28-perplexity-api",
+    "url": "https://docs.perplexity.ai/guides/search-quickstart",
+    "fetched_at": "2026-09-29T11:29:25.417072+00:00",
+    "status": 200,
+    "final_url": "https://docs.perplexity.ai/docs/search/quickstart",
+    "sha256": "c9bf2e76f3d1a08eb69bca005285ae52ae77be3295170bd17f24685e21e7fe45",
+    "ok": true,
+    "text_path": "sources\\S28-perplexity-api.txt",
+    "characters": 115459
+  }
+]

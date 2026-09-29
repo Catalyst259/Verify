@@ -1,0 +1,137 @@
+[
+  {
+    "id": "S29-safe-detail",
+    "url": "https://raw.githubusercontent.com/google-deepmind/long-form-factuality/main/eval/safe/README.md",
+    "fetched_at": "2026-09-29T11:32:58.779862+00:00",
+    "status": 200,
+    "final_url": "https://raw.githubusercontent.com/google-deepmind/long-form-factuality/main/eval/safe/README.md",
+    "sha256": "6dfed6f3b63f5e9711f4ebd89d3c8f555166e8fc095b5d849c9209185e3b9f8a",
+    "ok": true,
+    "text_path": "sources\\S29-safe-detail.txt",
+    "characters": 6210
+  },
+  {
+    "id": "S30-wikichat-pixi",
+    "url": "https://raw.githubusercontent.com/stanford-oval/WikiChat/main/pixi.toml",
+    "fetched_at": "2026-09-29T11:32:58.780867+00:00",
+    "status": 200,
+    "final_url": "https://raw.githubusercontent.com/stanford-oval/WikiChat/main/pixi.toml",
+    "sha256": "c0ff076946fd2d2882ea8cdb0f7e425837710ad434d9ccf1703fc72b754db20b",
+    "ok": true,
+    "text_path": "sources\\S30-wikichat-pixi.txt",
+    "characters": 1078
+  },
+  {
+    "id": "S31-gptresearcher-license",
+    "url": "https://raw.githubusercontent.com/assafelovic/gpt-researcher/master/LICENSE",
+    "fetched_at": "2026-09-29T11:32:58.781517+00:00",
+    "status": 200,
+    "final_url": "https://raw.githubusercontent.com/assafelovic/gpt-researcher/master/LICENSE",
+    "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+    "ok": true,
+    "text_path": "sources\\S31-gptresearcher-license.txt",
+    "characters": 11357
+  },
+  {
+    "id": "S32-gaode-walking",
+    "url": "https://lbs.amap.com/api/webservice/guide/api/direction",
+    "fetched_at": "2026-09-29T11:32:58.782201+00:00",
+    "status": 200,
+    "final_url": "https://lbs.amap.com/api/webservice/guide/api/direction",
+    "sha256": "9171117cb14a3193788a77dba92bf491058d483fd34ca86469e4276b4e1ba91d",
+    "ok": true,
+    "text_path": "sources\\S32-gaode-walking.txt",
+    "characters": 6657
+  },
+  {
+    "id": "S33-shanghai-notices",
+    "url": "https://www.shanghai.gov.cn/nw4411/index.html",
+    "fetched_at": "2026-09-29T11:32:58.783023+00:00",
+    "status": 200,
+    "final_url": "https://www.shanghai.gov.cn/nw4411/index.html",
+    "sha256": "96b64e361fe2b78873e12960ac69ecd0d33e00f2610bb71a26fe8b62a3fbeb5f",
+    "ok": true,
+    "text_path": "sources\\S33-shanghai-notices.txt",
+    "characters": 951
+  },
+  {
+    "id": "S34-shbg",
+    "url": "https://www.shbg.org/",
+    "fetched_at": "2026-09-29T11:32:58.865941+00:00",
+    "status": 200,
+    "final_url": "https://www.shbg.org/",
+    "sha256": "29d53bd1117d8ce1f7ce40e605a6f88bdbf3edd13da07c2873cc8196206693d1",
+    "ok": true,
+    "text_path": "sources\\S34-shbg.txt",
+    "characters": 2624
+  },
+  {
+    "id": "S35-ctrip-review-page",
+    "url": "https://you.ctrip.com/sight/shanghai2/571.html",
+    "fetched_at": "2026-09-29T11:32:59.926215+00:00",
+    "status": 200,
+    "final_url": "https://you.ctrip.com/sight/shanghai2/571.html",
+    "sha256": "f3b5aa4dc1b6862248e094c03a8c21b6a0b57df1f5bd510fa0f5689820d1ad2d",
+    "ok": true,
+    "text_path": "sources\\S35-ctrip-review-page.txt",
+    "characters": 65913
+  },
+  {
+    "id": "S36-crawl4ai",
+    "url": "https://raw.githubusercontent.com/unclecode/crawl4ai/main/README.md",
+    "fetched_at": "2026-09-29T11:32:59.926849+00:00",
+    "status": 200,
+    "final_url": "https://raw.githubusercontent.com/unclecode/crawl4ai/main/README.md",
+    "sha256": "c3f6d704fe58c197b59d9ac7fe669fffc5fb3c86fbbc27871253311400e529a6",
+    "ok": true,
+    "text_path": "sources\\S36-crawl4ai.txt",
+    "characters": 26570
+  },
+  {
+    "id": "S37-trafilatura",
+    "url": "https://raw.githubusercontent.com/adbar/trafilatura/master/README.rst",
+    "fetched_at": "2026-09-29T11:33:00.012874+00:00",
+    "ok": false,
+    "error": "HTTP Error 404: Not Found"
+  },
+  {
+    "id": "S38-bing-discovery",
+    "url": "https://www.bing.com/search?q=travel+fact+checking+AI+claim+verification+TripGenie",
+    "fetched_at": "2026-09-29T11:33:00.490268+00:00",
+    "status": 200,
+    "final_url": "https://www.bing.com/search?q=travel+fact+checking+AI+claim+verification+TripGenie",
+    "sha256": "dac6b416bf62ac258597f0af4366cebac58c3d468be198382ffe6c75b537cb35",
+    "ok": true,
+    "text_path": "sources\\S38-bing-discovery.txt",
+    "characters": 1654
+  },
+  {
+    "id": "S39-bing-notice",
+    "url": "https://www.bing.com/search?q=site.shanghai.gov.cn+%E6%99%AF%E5%8C%BA+%E4%B8%B4%E6%97%B6%E9%97%AD%E5%9B%AD+%E5%85%AC%E5%91%8A",
+    "fetched_at": "2026-09-29T11:33:00.762119+00:00",
+    "status": 200,
+    "final_url": "https://www.bing.com/search?q=site.shanghai.gov.cn+%E6%99%AF%E5%8C%BA+%E4%B8%B4%E6%97%B6%E9%97%AD%E5%9B%AD+%E5%85%AC%E5%91%8A",
+    "sha256": "b9f778df374f48b1f1cef454eb8a93fe02df5e3b3164ec43313fc8f30073c59c",
+    "ok": true,
+    "text_path": "sources\\S39-bing-notice.txt",
+    "characters": 1667
+  },
+  {
+    "id": "S40-langgraph-persistence",
+    "url": "https://docs.langchain.com/oss/python/langgraph/persistence",
+    "fetched_at": "2026-09-29T11:33:00.783676+00:00",
+    "status": 200,
+    "final_url": "https://docs.langchain.com/oss/python/langgraph/persistence",
+    "sha256": "113836765e585d0d1e038e4f55a7b03846f733c479409ac65b7664d00359224d",
+    "ok": true,
+    "text_path": "sources\\S40-langgraph-persistence.txt",
+    "characters": 5479
+  },
+  {
+    "id": "S41-baidu-search",
+    "url": "https://cloud.baidu.com/doc/qianfan-api/s/Fm9m52rly",
+    "fetched_at": "2026-09-29T11:33:01.890319+00:00",
+    "ok": false,
+    "error": "HTTP Error 404: Not Found"
+  }
+]

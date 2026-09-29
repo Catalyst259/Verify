@@ -1,0 +1,1227 @@
+Perplexity Search API - Perplexity
+
+Documentation Index
+Fetch the complete documentation index at: /llms.txt
+Use this file to discover all available pages before exploring further.
+Skip to main content
+
+For AI agents: see the complete llms.txt documentation index.
+
+Perplexity home page
+
+Docs
+Cookbook
+API Reference
+
+Get Started
+
+Get Started
+Search...
+Navigation
+
+Search API
+Perplexity Search API
+
+Search⌘K
+
+Community
+Blog
+Changelog
+
+Getting Started
+
+Overview
+
+Quickstart
+
+Pricing
+
+Perplexity API MCP
+
+Perplexity Computer MCP
+
+Perplexity CLI
+
+Router API
+
+Quickstart
+
+Models
+
+Routing & Reliability
+
+Agent API
+
+Quickstart
+
+Building agents
+
+Models & Configuration
+
+Tools
+
+Features
+
+OpenAI Compatibility
+
+Migrate from Sonar
+
+Prompt Guide
+
+Search API
+
+Quickstart
+
+Fast Search
+
+Best Practices
+
+Agent SDKs
+
+Filters
+
+Search SDK
+
+Overview
+
+Embeddings API
+
+Quickstart
+
+Best Practices
+
+Standard Embeddings
+
+Contextualized Embeddings
+
+Perplexity SDK
+
+Quickstart
+
+Guides
+
+Admin & Management
+
+Signing In
+
+Projects & Billing
+
+API Key Management
+
+Analytics API
+
+Rate Limits & Usage Tiers
+
+AWS Marketplace
+
+Resources
+
+Integrations
+
+API Roadmap
+
+Privacy & Security
+
+Frequently Asked Questions
+
+System Status
+
+Changelog
+
+Get in Touch
+
+Perplexity Crawlers
+
+On this page
+
+Overview
+Add Perplexity Search to your agent
+Installation
+Authentication
+Basic Usage
+Regional Web Search
+Multi-Query Web Search
+Domain Filtering for Search Results
+Denylisting Example
+Language Filtering for Web Search
+Budget Control
+Manual Token Budgets
+Next Steps
+Explore More
+
+Search API
+
+Perplexity Search API
+
+Copy pageCopy page
+
+Access real-time web search results with Perplexity’s Search API. Get ranked results, domain filtering, multi-query search, and content extraction for developers.
+
+Copy pageCopy page
+
+​
+Overview
+Perplexity’s Search API returns real-time, ranked web results as structured data, with controls for domains, languages, regions, and extracted content.
+Use the Search API when you need raw results for your own processing. For an LLM-generated answer with citations, use the Agent API.
+
+​
+Add Perplexity Search to your agent
+Ask your agent to install the Perplexity Search skill:
+
+Read https://github.com/perplexityai/api-platform-developers/blob/main/skills/pplx-cli/SKILL.md and install this skill.
+
+You can also try Perplexity Search in the interactive Playground with no API key required.
+
+You can now run Perplexity Search straight from your terminal.
+The Perplexity CLI returns the same ranked results as JSON, ready for shell pipelines and agent tool calls, with no code to write.
+
+​
+Installation
+Install one of our official SDKs for a convenient, type-safe integration:
+
+Python
+
+Typescript
+
+pip install perplexityai
+
+npm install @perplexity-ai/perplexity_ai
+
+​
+Authentication
+Set your API key as an environment variable. The official SDKs read it automatically, but you can also pass it explicitly:
+
+macOS/Linux
+
+Windows
+
+export PERPLEXITY_API_KEY="your_api_key_here"
+
+setx PERPLEXITY_API_KEY "your_api_key_here"
+
+​
+Basic Usage
+Start with a basic search query to get relevant web results. max_results accepts values from 1 to 20 and defaults to 10. See the API Reference for all parameters and pricing for search costs.
+
+Python
+
+Typescript
+JavaScript
+cURL
+
+from perplexity import Perplexity
+
+client = Perplexity()
+
+search = client.search.create(
+query="GPT-5.5 release announcement details",
+max_results=5,
+search_context_size="high"
+)
+
+for result in search.results:
+print(f"{result.title}: {result.url}")
+
+import Perplexity from '@perplexity-ai/perplexity_ai';
+
+const client = new Perplexity();
+
+const search = await client.search.create({
+query: "GPT-5.5 release announcement details",
+max_results: 5,
+search_context_size: "high"
+});
+
+for (const result of search.results) {
+console.log(`${result.title}: ${result.url}`);
+}
+
+const Perplexity = require('@perplexity-ai/perplexity_ai');
+
+const client = new Perplexity();
+
+async function main() {
+const search = await client.search.create({
+query: "GPT-5.5 release announcement details",
+max_results: 5,
+search_context_size: "high"
+});
+
+for (const result of search.results) {
+console.log(`${result.title}: ${result.url}`);
+}
+}
+
+main();
+
+curl -X POST 'https://api.perplexity.ai/search' \
+-H "Authorization: Bearer $PERPLEXITY_API_KEY" \
+-H 'Content-Type: application/json' \
+-d '{
+"query": "GPT-5.5 release announcement details",
+"max_results": 5,
+"search_context_size": "high"
+}' | jq
+
+Response
+
+{
+"results": [
+{
+"title": "2024: A year of extraordinary progress and advancement in AI - Google Blog",
+"url": "https://blog.google/technology/ai/2024-ai-extraordinary-progress-advancement/",
+"snippet": "## Relentless innovation in models, products and technologies\n\n2024 was a year of experimenting, fast shipping, and putting our latest technologies in the hands of developers.\n\nIn December 2024, we released the first models in our Gemini 2.0 experimental series — AI models designed for the agentic era. First out of the gate was Gemini 2.0 Flash, our workhorse model, followed by prototypes from the frontiers of our agentic research including: an updated Project Astra, which explores the capabilities of a universal AI assistant; Project Mariner, an early prototype capable of taking actions in Chrome as an experimental extension; and Jules, an AI-powered code agent. We're looking forward to bringing Gemini 2.0’s powerful capabilities to our flagship products — in Search, we've already started testing in AI Overviews, which are now used by over a billion people to ask new types of questions.\n\nWe also released Deep Research, a new agentic feature in Gemini Advanced that saves people hours of research work by creating and executing multi-step plans for finding answers to complicated questions; and introduced Gemini 2.0 Flash Thinking Experimental, an experimental model that explicitly shows its thoughts.\n\nThese advances followed swift progress earlier in the year, from incorporating Gemini's capabilities into more Google products to the release of Gemini 1.5 Pro and Gemini 1.5 Flash — a model optimized for speed and efficiency. 1.5 Flash's compact size made it more cost-efficient to serve, and in 2024 it became our most popular model for developers.... ## The architecture of intelligence: advances in robotics, hardware and computing\n\nAs our multimodal models become more capable and gain a better understanding of the world and its physics, they are making possible incredible new advances in robotics and bringing us closer to our goal of ever-more capable and helpful robots.\n\nWith ALOHA Unleashed, our robot learned to tie a shoelace, hang a shirt, repair another robot, insert a gear and even clean a kitchen.\n\nAt the beginning of the year, we introduced AutoRT, SARA-RT and RT-Trajectory, extensions of our Robotics Transformers work intended to help robots better understand and navigate their environments, and make decisions faster. We also published ALOHA Unleashed, a breakthrough in teaching robots on how to use two robotic arms in coordination, and DemoStart, which uses a reinforcement learning algorithm to improve real-world performance on a multi-fingered robotic hand by using simulations.\n\nRobotic Transformer 2 (RT-2) is a novel vision-language-action model that learns from both web and robotics data.\n\nBeyond robotics, our AlphaChip reinforcement learning method for accelerating and improving chip floorplanning is transforming the design process for chips found in data centers, smartphones and more. To accelerate adoption of these techniques, we released a pre-trained checkpoint to enable external parties to more easily make use of the AlphaChip open source release for their own chip designs. And we made Trillium, our sixth-generation and most performant TPU to date, generally available to Google Cloud customers. Advances in computer chips have accelerated AI. And now, AI can return the favor.... We are exploring how machine learning can help medical fields struggling with access to imaging expertise, such as radiology, dermatology and pathology. In the past year, we released two research tools, Derm Foundation and Path Foundation, that can help develop models for diagnostic tasks, image indexing and curation and biomarker discovery and validation. We collaborated with physicians at Stanford Medicine on an open-access, inclusive Skin Condition Image Network (SCIN) dataset. And we unveiled CT Foundation, a medical imaging embedding tool used for rapidly training models for research.\n\nWith regard to learning, we explored new generative AI tools to support educators and learners. We introduced LearnLM, our new family of models fine-tuned for learning and used it to enhance learning experiences in products like Search, YouTube and Gemini; a recent report showed LearnLM outperformed other leading AI models. We also made it available to developers as an experimental model in AI Studio. Our new conversational learning companion, LearnAbout, uses AI to help you dive deeper into any topic you're curious about, while Illuminate lets you turn content into engaging AI-generated audio discussions.\n\nIn the fields of disaster forecasting and preparedness, we announced several breakthroughs. We introduced GenCast, our new high-resolution AI ensemble model, which improves day-to-day weather and extreme events forecasting across all possible weather trajectories. We also introduced our NeuralGCM model, able to simulate over 70,000 days of the atmosphere in the time it would take a physics-based model to simulate only 19 days. And GraphCast won the 2024 MacRobert Award for engineering innovation.",
+"date": "2025-01-23",
+"last_updated": "2025-09-25"
+},
+{
+"title": "The 2025 AI Index Report | Stanford HAI",
+"url": "https://hai.stanford.edu/ai-index/2025-ai-index-report",
+"snippet": "Read the translation\n\nIn 2023, researchers introduced new benchmarks—MMMU, GPQA, and SWE-bench—to test the limits of advanced AI systems. Just a year later, performance sharply increased: scores rose by 18.8, 48.9, and 67.3 percentage points on MMMU, GPQA, and SWE-bench, respectively. Beyond benchmarks, AI systems made major strides in generating high-quality video, and in some settings, language model agents even outperformed humans in programming tasks with limited time budgets.\n\nFrom healthcare to transportation, AI is rapidly moving from the lab to daily life. In 2023, the FDA approved 223 AI-enabled medical devices, up from just six in 2015. On the roads, self-driving cars are no longer experimental: Waymo, one of the largest U.S. operators, provides over 150,000 autonomous rides each week, while Baidu's affordable Apollo Go robotaxi fleet now serves numerous cities across China.\n\nIn 2024, U.S. private AI investment grew to $109.1 billion—nearly 12 times China's $9.3 billion and 24 times the U.K.'s $4.5 billion. Generative AI saw particularly strong momentum, attracting $33.9 billion globally in private investment—an 18.7% increase from 2023. AI business usage is also accelerating: 78% of organizations reported using AI in 2024, up from 55% the year before. Meanwhile, a growing body of research confirms that AI boosts productivity and, in most cases, helps narrow skill gaps across the workforce.... In 2024, U.S.-based institutions produced 40 notable AI models, significantly outpacing China's 15 and Europe's three. While the U.S. maintains its lead in quantity, Chinese models have rapidly closed the quality gap: performance differences on major benchmarks such as MMLU and HumanEval shrank from double digits in 2023 to near parity in 2024. Meanwhile, China continues to lead in AI publications and patents. At the same time, model development is increasingly global, with notable launches from regions such as the Middle East, Latin America, and Southeast Asia.\n\nAI-related incidents are rising sharply, yet standardized RAI evaluations remain rare among major industrial model developers. However, new benchmarks like HELM Safety, AIR-Bench, and FACTS offer promising tools for assessing factuality and safety. Among companies, a gap persists between recognizing RAI risks and taking meaningful action. In contrast, governments are showing increased urgency: In 2024, global cooperation on AI governance intensified, with organizations including the OECD, EU, U.N., and African Union releasing frameworks focused on transparency, trustworthiness, and other core responsible AI principles.\n\nIn countries like China (83%), Indonesia (80%), and Thailand (77%), strong majorities see AI products and services as more beneficial than harmful. In contrast, optimism remains far lower in places like Canada (40%), the United States (39%), and the Netherlands (36%). Still, sentiment is shifting: since 2022, optimism has grown significantly in several previously skeptical countries—including Germany (+10%), France (+10%), Canada (+8%), Great Britain (+8%), and the United States (+4%).... Driven by increasingly capable small models, the inference cost for a system performing at the level of GPT-3.5 dropped over 280-fold between November 2022 and October 2024. At the hardware level, costs have declined by 30% annually, while energy efficiency has improved by 40% each year. Open-weight models are also closing the gap with closed models, reducing the performance difference from 8% to just 1.7% on some benchmarks in a single year. Together, these trends are rapidly lowering the barriers to advanced AI.\n\nIn 2024, U.S. federal agencies introduced 59 AI-related regulations—more than double the number in 2023—and issued by twice as many agencies. Globally, legislative mentions of AI rose 21.3% across 75 countries since 2023, marking a ninefold increase since 2016. Alongside growing attention, governments are investing at scale: Canada pledged $2.4 billion, China launched a $47.5 billion semiconductor fund, France committed €109 billion, India pledged $1.25 billion, and Saudi Arabia's Project Transcendence represents a $100 billion initiative.\n\nTwo-thirds of countries now offer or plan to offer K–12 CS education—twice as many as in 2019—with Africa and Latin America making the most progress. In the U.S., the number of graduates with bachelor's degrees in computing has increased 22% over the last 10 years. Yet access remains limited in many African countries due to basic infrastructure gaps like electricity. In the U.S., 81% of K–12 CS teachers say AI should be part of foundational CS education, but less than half feel equipped to teach it.",
+"date": "2024-09-10",
+"last_updated": "2025-09-25"
+}
+],
+"id": "e38104d5-6bd7-4d82-bc4e-0a21179d1f77"
+}
+
+Need lower latency or lower cost? Set search_type: "fast" in the Search API request body. Fast Search costs $1.00 per 1,000 requests. For Python and TypeScript, use the compatibility workarounds in Fast Search.
+
+​
+Regional Web Search
+Set country to an ISO 3166-1 alpha-2 code such as US, GB, DE, or JP to get more geographically relevant results. This is useful for local news, regulations, and other region-specific queries:
+
+Python
+
+Typescript
+cURL
+
+from perplexity import Perplexity
+
+client = Perplexity()
+
+# Search for results from a specific country
+search = client.search.create(
+query="government policies on renewable energy",
+country="US", # ISO country code
+max_results=5
+)
+
+for result in search.results:
+print(f"{result.title}: {result.url}")
+
+import Perplexity from '@perplexity-ai/perplexity_ai';
+
+const client = new Perplexity();
+
+// Search for results from a specific country
+const search = await client.search.create({
+query: "government policies on renewable energy",
+country: "US", // ISO country code
+max_results: 5
+});
+
+for (const result of search.results) {
+console.log(`${result.title}: ${result.url}`);
+}
+
+curl -X POST 'https://api.perplexity.ai/search' \
+-H "Authorization: Bearer $PERPLEXITY_API_KEY" \
+-H 'Content-Type: application/json' \
+-d '{
+"query": "government policies on renewable energy",
+"country": "US",
+"max_results": 5
+}' | jq
+
+Response
+
+{
+"id": "5ca855c3-14f9-4863-8027-9375087aec4a",
+"results": [
+{
+"snippet": "EPA's\n*State Energy and Environment* Guide to Action offers real-world best practices to help states design and implement policies that reduce emissions associated with electricity generation and energy consumption.\nThe *Guide *is a comprehensive EPA resource designed to help state officials draw insights from other states' implementation experiences and policy innovations to help meet their own state's climate, environment, and energy goals.\n...\nDSIRE is a comprehensive source of information on the status of state programs and incentives promoting renewable energy, including information on financial incentives and net metering policies, as well as related awareness and investment programs.\n...\nThe Distributed Renewable Energy Finance and Policy Toolkit describes the many financing options available to state energy offices, municipal governments, and other energy agencies for utilizing public funds for clean energy project support.\nThe report analyzes their strengths and weaknesses and identifies best practices.\nOne key finding is that the use of these tools as a portfolio of approaches creates the most robust, effective programs.\n...\nEPA's Green Power Partnership provides an overview of REC tracking systems, including a map of the regional tracking systems that have been developed in the United States.",
+"title": "State Renewable Energy: Policies | US EPA",
+"url": "https://www.epa.gov/statelocalenergy/state-renewable-energy-policies",
+"date": "2026-01-05",
+"last_updated": "2026-01-27"
+},
+{
+"snippet": "As environmental challenges grow more urgent, government policies on renewable energy have become essential in shaping the future.\nThese policies not only combat climate change but also drive sustainable energy solutions for communities worldwide.\nThe transition to renewable energy requires more than technological advancements—it is driven by clear and supportive policies.\nGovernments are instrumental in providing the incentives, infrastructure and regulations needed to accelerate renewable energy adoption.\n...\nEnergy policy involves guidelines and regulations that govern the production, distribution and use of energy.\nIt plays a crucial role in supporting economic growth, social well-being and environmental sustainability.\nEffective energy policy addresses issues like energy security, renewable energy and climate change, using mechanisms such as laws, incentives and regulations.\n...\nGovernments worldwide are playing an increasingly critical role in advancing renewable energy adoption through strategic policies.\nThese policies, though diverse, aim to accelerate the transition toward sustainable energy and meet global climate goals.\n- Europe leads by example with the European Union’s Renewable Energy Directive, which mandates that member states meet specific renewable energy targets by 2030.\nThis directive not only fosters cooperation across the EU but also encourages investment in green energy.\n- Countries such as Germany have pioneered successful mechanisms like feed-in tariffs, guaranteeing fixed payments for renewable energy producers, which has significantly boosted solar power installations across the country.\n- In Southeast Asia, governments are increasingly turning to renewable energy policies to address growing energy demands and sustainability goals.\nFor instance, the Philippines enacted the Renewable Energy Act of 2008 (Republic Act 9513), which provides fiscal incentives such as tax holidays and zero-percent VAT for renewable energy developers.\nThese policies have enabled the development of numerous renewable energy projects in the Philippines, helping the country reduce its dependence on fossil fuels.\nThrough these examples, it becomes clear that government policies are essential in accelerating the adoption of renewable energy technologies, fostering innovation and promoting sustainability on a global scale.\n...\nThe growth of renewable energy relies heavily on government policies that promote clean energy adoption.\nThese policies help reduce the risks and costs associated with renewable energy projects, making them more attractive to investors and developers.\nWithout favorable policies, the transition to renewables would likely be slower and less comprehensive.\nThere are several ways in which policy supports renewable energy development.\nFinancial incentives, such as subsidies, tax credits and grants, lower the upfront costs of renewable energy technologies, encouraging widespread adoption.\nFeed-in tariffs and renewable energy certificates (RECs) also help by ensuring stable income for renewable energy producers.\nThese policies reduce financial uncertainty and create long-term economic viability for green energy projects.\nAnother key aspect is the establishment of clear targets and standards.\nGovernments that commit to ambitious renewable energy goals, such as achieving a certain percentage of clean energy by a specific year, encourage innovation and competition within the industry.\nThis, in turn, accelerates the development of new technologies and solutions.\n...\nGovernment policies play a crucial role in advancing renewable energy technology by providing the necessary financial support, research funding and tax incentives.\nThese policies create an environment that encourages companies to innovate, reducing the financial risks typically associated with investing in cutting-edge technologies.\n...\nIn the Philippines, renewable energy policies have played a critical role in shaping the country’s energy landscape.\nThe Renewable Energy Act of 2008 (Republic Act 9513) marked a turning point in the Philippines’ journey toward a sustainable future.\nThis law established a comprehensive framework to promote the development of renewable energy projects in the Philippines, offering incentives such as tax holidays, zero-percent VAT and feed-in tariffs.\n...\nGovernment policies play a pivotal role in advancing renewable energy, shaping the future of clean energy development, and ensuring its widespread adoption.",
+"title": "The role of government policies in advancing renewable energy",
+"url": "https://www.acenrenewables.com/2025/08/renewable-energy-policies/",
+"date": "2025-08-13",
+"last_updated": "2026-05-21"
+},
+{
+"snippet": "New research suggests U.S. states with clean energy policies provide benefits to their neighbors, including states without their own renewable energy policies.\n...\nWhile the U.S. federal government has clean energy targets, they are not binding.\nMost economically developed countries have mandatory policies designed to bolster renewable electricity production.\nBecause the U.S. lacks an enforceable federal mandate for renewable electricity, individual states are left to develop their own regulations.\n...\nBrown, Solomon, and Zhou examined a common clean energy policy tool: the Renewable Portfolio Standard (RPS).\nAdopted by more than half of U.S. states, RPSs are regulations requiring a state’s utility providers to generate a certain percentage of their electricity from renewable resources, such as wind or solar.\nMany of these standards are mandatory, with utility companies facing fines if they fail to reach targets within a given time.\n...\nThe team found that the amount of renewable electricity generation in a state is not only influenced by whether that state has its own RPS, but also by the RPS policies of neighboring states.\n“We also learned that the stronger a neighboring state’s RPS policy is, the more likely a given state is to generate more renewable electricity,” Brown said.\n“It’s all a very interactive web with many co-benefits.”",
+"title": "Renewable Energy Policies Provide Benefits Across State Lines",
+"url": "https://news.gatech.edu/news/2024/08/15/renewable-energy-policies-provide-benefits-across-state-lines",
+"date": "2024-08-15",
+"last_updated": "2026-03-10"
+},
+{
+"snippet": "# Regulations, Standards, and Incentivesd There are a number of laws that address renewable energy.\nSome of the major laws that primarily focus on renewable energy are listed on this page.\nHowever, there many more laws, regulations, and incentives that address renewable energy or specific types of energy sources.\nTo find proposed U.S. federal laws and statutes and U.S. state bills related to renewable energy, use the following resources.\n...\nThe official website of the current presidential administration.\nSearch or browse for initiatives, plans, and priorities related to renewable energy or clean energy.\n...\n## Renewable Energy Legislation LFederal, state, regional and international agreements, policies, and laws impact the renewable energy industries from manufacturing to distribution.\nSome government and intergovernmental decisions impact other industries by regulating the energy source or amount of energy used.\nBelow are some specific examples.\n...\n- Energy Independence and Security Act of 2007 (P.L. 110-140) (PDF, 901 KB)\nAn act to move the United States toward greater energy independence and security, to increase the production of clean renewable fuels, to protect consumers, to increase the efficiency of products, buildings, and vehicles, to promote research on and deploy greenhouse gas capture and storage options, and to improve the energy performance of the Federal Government, and for other purposes.\n- Energy Policy Act of 2005 (P.L. 109-58) (PDF, 3.2 MB)\nAn act to ensure jobs for our future with secure, affordable, and reliable energy.\nAdditionally, the U.S. Office of Energy Efficiency & Renewable Energy summarizes the requirement that the Federal Government must consume at least 7.5 percent of its total electricity from renewable sources.\n...\nAn act to provide authority for the Federal Government to purchase and insure certain types of troubled assets for the purposes of providing stability to and preventing disruption in the economy and financial system and protecting taxpayers, to amend the Internal Revenue Code of 1986 to provide incentives for energy production and conservation, to extend certain expiring provisions, to provide individual income tax relief, and for other purposes.\n...\n## Renewable Portfolio StandardsioMost states set renewable portfolio standards (RPS), which requires a certain percentage of their energy to come from renewable energy sources over a specific time frame.\nThis amount can be measured as a percentage of total energy demand or as the amount of energy produced (in MWh).\n...\n## Incentives# In addition to policies and mandates, federal, state, and local governments offer financial incentives to encourage investment in renewable energies.\nSome are compliance markets, while others are voluntary carbon markets.\n...\nFind state government and utility requirements and incentives for renewable energy.",
+"title": "Regulations, Standards, and Incentives - Renewable Energy ...",
+"url": "https://guides.loc.gov/renewable-energy/regulations",
+"date": "2026-05-12",
+"last_updated": "2026-03-08"
+},
+{
+"snippet": "Recent policy shifts at the federal level have introduced significant variability to the US renewable energy sector.\nWhile demand for clean energy continues to grow, executive orders, regulatory changes, and evolving legislative priorities are reshaping the landscape for project development and investment.\nIn this Insight based on our Earth Day webinar series we outline some of the key federal developments affecting renewables in 2025, including changes to permitting and National Environmental Policy Act (NEPA) implementation, vehicle emissions standards, the future of Inflation Reduction Act (IRA) tax incentives, and additional considerations for clean energy project developers, and highlight how legal and regulatory changes are being implemented and what to watch in the months ahead.\n### RENEWABLE INFRASTRUCTURE PERMITTINGUCThe administration’s early executive orders have sent strong signals that it intends to prioritize domestic fossil fuel production over renewable energy development.\nThe implications for project permitting are particularly acute.\n...\nThree major executive actions will reshape the permitting landscape:\n- **National Energy Emergency Declaration:** Defines “energy” to include fossil fuels but excludes solar and wind, directs agencies to invoke emergency powers under the Defense Production Act to accelerate fossil fuel projects, and provides specific instructions for expediting Clean Water Act permitting and Endangered Species Act reviews for such projects.\n- **Unleashing American Energy:** Directs agencies to revise or repeal regulations that hinder fossil fuel development, rescinds multiple Biden-era environmental orders, and instructs the Council on Environmental Quality (CEQ) to withdraw NEPA regulations and issue new permitting guidance.\n- **Offshore Wind Leasing Halt:** Suspends new offshore wind leases, raising concerns about the reliability of federal permitting for renewables.\nCollectively, these measures have introduced uncertainty and additional risk for clean energy projects across the country.\n...\nThe rescission of the CEQ’s NEPA regulations represents a particularly significant change in federal policy for the renewables sector.\nThe interim final rule removes the governmentwide framework for environmental reviews, replacing it with a directive that agencies craft their own NEPA regulations.\n...\nThe administration has stated that permitting should continue without delay, however, the absence of consistent guidance combined with pending litigation and shifting agency procedures has introduced notable uncertainty, making it more difficult for developers to predict permitting timelines or requirements.\n...\nThe current administration is now working to unwind those efforts, and a budget reconciliation bill currently making its way through the US Congress includes provisions to revise or repeal the programs discussed below.\n...\nUnder the Unleashing American Energy executive order, agencies have been instructed to revise or suspend rules that limit consumer vehicle choice.\nThe US Environmental Protection Agency (EPA) has stated its intent to revise these tailpipe standards and the 2022 nitrogen oxide rules for trucks, which also incentivized manufacturers toward EVs.\nThe previous administration’s rules technically remain in effect and litigation over them is paused, but they are providing little to no incentive for EV adoptions as their compliance deadlines remain years away and the industry anticipates that they will soon be repealed and replaced.\n...\nCorporate Average Fuel Economy (CAFE) standards, overseen by the US Department of Transportation’s National Highway Traffic Safety Administration (NHTSA), have received less public attention but also face revision.\n...\nNHTSA is now reconsidering these standards, with litigation held in abeyance pending agency action.\n...\nIn May 2025, Congress passed resolutions under the Congressional Review Act (CRA) to nullify EPA waivers granted to California for its Advanced Clean Cars II and Advanced Clean Trucks programs along with related nitrogen oxide standards.\nThese waivers issued under the Clean Air Act have long allowed California to set more stringent vehicle emissions rules.\nMore than a dozen states follow these stricter standards, collectively representing roughly half of the US auto market.\nThis action by Congress followed earlier determinations by the Senate parliamentarian and the Government Accountability Office that such waivers do not constitute “rules” under the CRA and are therefore not subject to its provisions.\nThe resolutions now await the president’s signature.\nCalifornia officials, including Governor Gavin Newsom and Attorney General Rob Bonta, have announced intentions to challenge the revocation in court, arguing that it undermines the state’s longstanding authority under the Clean Air Act to protect public health and the environment.\n...\n### INFLATION REDUCTION ACT INCOME TAX BENEFITSCOThe IRA fundamentally reshaped the US clean energy economy by introducing and expanding tax credits across the energy supply chain and for deployment and the way these credits could be monetized.\nWhile these benefits remain in place, they face political headwinds.\n...\nThe IRA enhanced or introduced federal income tax credits for renewable electricity, energy storage, clean hydrogen and other clean fuel, and carbon capture utilization and storage facilities, among other technologies.\nIt introduced credit-enhancing “adders” for meeting certain labor standards, using domestic content, “energy community” location, and investing in low-income communities.\nThe IRA also introduced the advanced manufacturing credit for US production of clean tech equipment and critical minerals.\nCritically, the IRA enacted two new ways to monetize these tax credits, transferability and direct payment.\nThese provisions opened the market to new investors and financing structures, significantly expanding participation in the clean energy economy.\n...\nWith a Republican trifecta now in place for control of the US House of Representatives, Senate, and presidency, the future of these tax benefits is unclear.\nGuidance on IRA tax provisions has largely halted.\nA regulatory freeze was imposed shortly after the new administration took office.\nAdditionally, lawmakers are pursuing a budget reconciliation bill that seeks to extend the 2017 tax cuts and enact other tax cuts, and limitation and accelerated sunset of IRA tax benefits and transferability monetization are being proposed as offsetting revenue raisers.\n...\nWhile renewable energy demand remains strong, the policy landscape in 2025 has so far been defined by legal uncertainty and administrative changes.\nExecutive orders, rescinded regulations, stalled guidance, and legislative developments are forcing developers and investors to rethink strategies, assess new risks, and act decisively to protect the viability of current and future projects.",
+"title": "Renewables Under the New Administration - Morgan Lewis",
+"url": "https://www.morganlewis.com/pubs/2025/06/renewables-under-the-new-administration-navigating-an-uncertain-roadmap",
+"date": "2025-06-06",
+"last_updated": "2026-03-22"
+},
+{
+"snippet": "Federal, state, and local governments and electric utilities encourage investing in and using renewable energy and, in some cases, require it.\nThis is an overview of the major programs and incentives available for renewable energy production and use in the United States.\nThe Database of State Incentives for Renewables & Efficiency® (DSIRE) is a comprehensive source of detailed information on government and utility requirements and incentives for renewable energy.\n...\n### Government financial incentivestiSeveral federal government tax credits, grants, and loan programs are available for qualifying renewable energy technologies and projects.\nThe federal tax incentives, or credits, for qualifying renewable energy projects and equipment include the Renewable Electricity Production Tax Credit (PTC), the Investment Tax Credit (ITC), the Residential Energy Credit, and the Modified Accelerated Cost-Recovery System (MACRS).\nGrant and loan programs may be available from several government agencies, including the U.S. Department of Agriculture, the U.S. Department of Energy (DOE), and the U.S. Department of the Interior.\nMost states also provide financial incentives to encourage renewable energy production and use.\n### Renewable portfolio standards or goalsgoA renewable portfolio standard (RPS) typically requires that a percentage of the electric power sales in a state comes from renewable energy sources.\nSome states have specific requirements, and some have voluntary goals, within a specified time frame, for the share of electricity generation or sales in a state that come from renewable energy.\nCompliance with RPS policies may require or allow utilities to trade *renewable energy certificates*.\n### Renewable energy certificates or creditsedFinancial products are available for sale, purchase, or trade that allow a purchaser to pay for renewable energy production without directly producing or purchasing the renewable energy.\nThe most widely available products are renewable energy certificates, or credits (RECs).\nThese products may also be called *green tags*, *green energy certificates*, or *tradable renewable certificates*, depending on the entity that markets them.\nElectric utilities can use RECS to comply with state renewable energy portfolio standards.\nMany companies use RECS or similar products to meet their voluntary targets or goals to reduce greenhouse gas emissions in their operations.\n### Net meteringerNet metering allows electric utility customers to install qualifying renewable energy systems on their properties and to connect them to an electric utility's distribution system (or *grid*).\nThese mainly state-based programs vary, but in general, electric utilities bill their net metering customers for the net electricity their customers use during a defined period.\n...\nAccording to the DSIRE website (as of 12/27/2022), 44 states and the District of Columbia have some form of state net metering policy.\nTwo states (Idaho and Texas) do not have statewide rules, but several utilities in those states allow net metering.\n...\n### Feed-in tariffs (FITs)FISeveral states and individual electric utilities have established special rates for purchasing electricity from certain types of renewable energy systems.\nThese rates, sometimes known as *feed-in tariffs* (FITs), are generally higher than electricity rates otherwise available to the generator.\nFITs are intended to encourage new projects for specific types of renewable energy technologies.\n### Consumer options for purchasing electricity generated with renewable energy sourcesurNearly every electricity consumer in the United States, by default, uses some electricity generated with renewable sources because of the interconnected nature of the U.S. electricity system.\nFor consumers who want to purchase electricity solely produced with renewable energy, many states have the option to choose electricity providers, and some of the participating electricity providers may sell electricity specifically generated with renewable energy.\nAvailability of these programs depends on state regulations for retail electric power markets.\nConsumers can also voluntarily purchase *green power*, even if retail electricity choice is not available.\nMost of these voluntary programs generally involve contractual *accounting* for renewable electricity generation rather the physical or contractual *delivery* of the electricity to the customer or utility.\n### Biofuels and other fuels for vehiclesicSeveral federal and state requirements and incentives are in effect for producing, selling, and using biofuels and other alternative vehicle fuels.\nFederal law requires the use of biofuels, or qualifying substitutes, in the U.S. transportation fuel supply.\nThe U.S. Environmental Protection Agency sets annual volume requirements for these fuels.\nOther federal programs provide financial support for biofuels producers.\nMany states have their own programs that support or promote biofuels.\n...\n### Renewables research and developmentveThe U.S. Department of Energy (DOE) and other federal government agencies fund research and development for renewable energy technologies.\nThe DOE's national laboratories carry out or manage most of this research and development in collaboration with academic institutions and private companies.\nThe availability of these programs depends on annual appropriations from the U.S. Congress.",
+"title": "Renewable energy explained - incentives - EIA",
+"url": "https://www.eia.gov/energyexplained/renewable-sources/incentives.php",
+"date": "2026-03-26",
+"last_updated": "2026-03-31"
+}
+],
+"server_time": null
+}
+
+​
+Multi-Query Web Search
+Pass up to five related queries in one request to explore different angles of a topic. Each query is processed independently:
+
+A successful multi-query request is billed as one Search API request, while rate limiting counts each query in the array. For example, a request with five queries is one billing unit and consumes five rate-limit units. See pricing and Search API rate limits for details.
+
+Python
+
+Typescript
+cURL
+
+from perplexity import Perplexity
+
+client = Perplexity()
+
+search = client.search.create(
+query=[
+"artificial intelligence trends 2024",
+"machine learning breakthroughs recent",
+"AI applications in healthcare"
+],
+max_results=5
+)
+
+# Access results
+for result in search.results:
+print(f" {result.title}: {result.url}")
+
+import Perplexity from '@perplexity-ai/perplexity_ai';
+
+const client = new Perplexity();
+
+const search = await client.search.create({
+query: [
+"artificial intelligence trends 2024",
+"machine learning breakthroughs recent",
+"AI applications in healthcare"
+],
+max_results: 5
+});
+
+// Access results
+search.results.forEach(result => {
+console.log(` ${result.title}: ${result.url}`);
+});
+
+curl -X POST 'https://api.perplexity.ai/search' \
+-H "Authorization: Bearer $PERPLEXITY_API_KEY" \
+-H 'Content-Type: application/json' \
+-d '{
+"query": [
+"artificial intelligence trends 2024",
+"machine learning breakthroughs recent",
+"AI applications in healthcare"
+],
+"max_results": 5
+}' | jq
+
+​
+Domain Filtering for Search Results
+The search_domain_filter parameter allows you to limit search results to specific domains (allowlist) or exclude certain domains (denylist) for focused research. The filter works in two modes:
+
+Allowlist mode: Include only specified domains (no - prefix)
+
+Denylist mode: Exclude specified domains (use - prefix)
+
+You can also append a path to restrict results to a section of a site (e.g., "nature.com/articles"). See the domain filter guide for path filtering and advanced patterns.
+Note: You can use either allowlist or denylist mode, but not both simultaneously in the same request.
+
+Python
+
+Typescript
+JavaScript
+cURL
+
+from perplexity import Perplexity
+
+client = Perplexity()
+
+search = client.search.create(
+query="IPCC AR6 synthesis report key findings",
+search_domain_filter=[
+"science.org",
+"pnas.org",
+"cell.com"
+],
+max_results=10
+)
+
+for result in search.results:
+print(f"{result.title}: {result.url}")
+print(f"Published: {result.date}")
+print("---")
+
+import Perplexity from '@perplexity-ai/perplexity_ai';
+
+const client = new Perplexity();
+
+const search = await client.search.create({
+query: "IPCC AR6 synthesis report key findings",
+search_domain_filter: [
+"science.org",
+"pnas.org",
+"cell.com"
+],
+max_results: 10
+});
+
+for (const result of search.results) {
+console.log(`${result.title}: ${result.url}`);
+console.log(`Published: ${result.date}`);
+console.log("---");
+}
+
+const Perplexity = require('@perplexity-ai/perplexity_ai');
+
+const client = new Perplexity();
+
+async function main() {
+const search = await client.search.create({
+query: "IPCC AR6 synthesis report key findings",
+search_domain_filter: [
+"science.org",
+"pnas.org",
+"cell.com"
+],
+max_results: 10
+});
+
+for (const result of search.results) {
+console.log(`${result.title}: ${result.url}`);
+console.log(`Published: ${result.date}`);
+console.log("---");
+}
+}
+
+main();
+
+curl -X POST 'https://api.perplexity.ai/search' \
+-H "Authorization: Bearer $PERPLEXITY_API_KEY" \
+-H 'Content-Type: application/json' \
+-d '{
+"query": "IPCC AR6 synthesis report key findings",
+"search_domain_filter": [
+"science.org",
+"pnas.org",
+"cell.com"
+],
+"max_results": 10
+}' | jq
+
+Response
+
+{
+"id": "75c39a4e-a46c-4850-bf27-4c061186ece6",
+"results": [
+{
+"snippet": "",
+"title": "10 Big Findings from the 2023 IPCC Report on Climate Change",
+"url": "https://www.wri.org/insights/2023-ipcc-ar6-synthesis-report-climate-change-findings",
+"date": "2023-03-20",
+"last_updated": "2026-05-15"
+},
+{
+"snippet": "",
+"title": "AR6 Synthesis Report",
+"url": "https://www.ipcc.ch/report/ar6/syr/",
+"date": null,
+"last_updated": "2026-05-21"
+},
+{
+"snippet": "",
+"title": "[PDF] Climate Change 2023 Synthesis Report",
+"url": "https://www.ipcc.ch/report/ar6/syr/downloads/report/IPCC_AR6_SYR_LongerReport.pdf",
+"date": null,
+"last_updated": "2026-05-18"
+},
+{
+"snippet": "The Synthesis Report is based on the content of the three Working Groups Assessment Reports:* WGI – The Physical Science Basis, WGII – Impacts, Adaptation and Vulnerability, WGIII – Mitigation of Climate Change*, and the three Special Reports: *Global Warming of 1.5°C*, *Climate Change and Land*, *The Ocean and Cryosphere in a Changing Climate*.\n...\nThe SYR outline agreed at the 52^nd^ Panel Session of the IPCC consists of an introduction and three main sections arranged by timeframes.\nThe first section, ‘Current Status and Trends’, covers the historical and present period.\nThe second section, ‘Long-term Climate and Development Futures’, addresses projected futures up to 2100 and beyond.\nThe final section is ‘Near-term Responses in a Changing Climate’, considers current international policy timeframes, and the time interval between now and 2030-2040.\nThis structure, substantially different to what was adopted for AR5 SYR, enables a holistic framing that integrates across the Working Groups, better enabling the SYR to cover different aspects of climate change.",
+"title": "AR6 Synthesis Report: Climate Change 2023 — IPCC",
+"url": "https://www.ipcc.ch/report/sixth-assessment-report-cycle/",
+"date": null,
+"last_updated": "2026-05-12"
+},
+{
+"snippet": "",
+"title": "[PDF] IPCC_AR6_SYR_FullVolume.pdf",
+"url": "https://www.ipcc.ch/report/ar6/syr/downloads/report/IPCC_AR6_SYR_FullVolume.pdf",
+"date": null,
+"last_updated": "2026-05-20"
+},
+{
+"snippet": "",
+"title": "Summary for Policymakers",
+"url": "https://www.ipcc.ch/report/ar6/syr/summary-for-policymakers/",
+"date": null,
+"last_updated": "2026-05-20"
+},
+{
+"snippet": "",
+"title": "SYR Longer Report - Intergovernmental Panel on Climate Change",
+"url": "https://www.ipcc.ch/report/ar6/syr/longer-report/",
+"date": null,
+"last_updated": "2026-03-21"
+},
+{
+"snippet": "",
+"title": "IPCC Secretariat",
+"url": "https://www.ipcc.ch/site/assets/uploads/2023/03/Doc5_Adopted_AR6_SYR_Longer_Report.pdf",
+"date": null,
+"last_updated": "2024-02-26"
+},
+{
+"snippet": "",
+"title": "IPCC AR6 Working Group 1: Technical Summary",
+"url": "https://www.ipcc.ch/report/ar6/wg1/chapter/technical-summary/",
+"date": null,
+"last_updated": "2026-03-18"
+},
+{
+"snippet": "",
+"title": "IPCC_AR6_SYR_SPM.pdf",
+"url": "https://www.ipcc.ch/report/ar6/syr/downloads/report/IPCC_AR6_SYR_SPM.pdf",
+"date": null,
+"last_updated": "2026-05-21"
+}
+],
+"server_time": null
+}
+
+You can add a maximum of 20 domains to the search_domain_filter list. The filter works in either allowlist mode (include only) or denylist mode (exclude), but not both simultaneously. See the domain filter guide for advanced usage patterns.
+
+​
+Denylisting Example
+You can also exclude specific domains from search results:
+
+Python
+
+Typescript
+cURL
+
+from perplexity import Perplexity
+
+client = Perplexity()
+
+# Exclude social media sites from search results
+search = client.search.create(
+query="Système d'échange de quotas d'émission de l'Union européenne: conception du dispositif et historique du prix du carbone",
+search_domain_filter=[
+"-pinterest.com",
+"-reddit.com",
+"-quora.com"
+],
+max_results=10
+)
+
+for result in search.results:
+print(f"{result.title}: {result.url}")
+
+import Perplexity from '@perplexity-ai/perplexity_ai';
+
+const client = new Perplexity();
+
+// Exclude social media sites from search results
+const search = await client.search.create({
+query: "Système d'échange de quotas d'émission de l'Union européenne: conception du dispositif et historique du prix du carbone",
+search_domain_filter: [
+"-pinterest.com",
+"-reddit.com",
+"-quora.com"
+],
+max_results: 10
+});
+
+for (const result of search.results) {
+console.log(`${result.title}: ${result.url}`);
+}
+
+curl -X POST 'https://api.perplexity.ai/search' \
+-H "Authorization: Bearer $PERPLEXITY_API_KEY" \
+-H 'Content-Type: application/json' \
+-d '{
+"query": "Système d\u0027échange de quotas d\u0027émission de l\u0027Union européenne: conception du dispositif et historique du prix du carbone",
+"search_domain_filter": [
+"-pinterest.com",
+"-reddit.com",
+"-quora.com"
+],
+"max_results": 10
+}' | jq
+
+Response
+
+{
+"id": "fbe2ad33-45df-46bf-953d-ea32cf70ef10",
+"results": [
+{
+"snippet": "",
+"title": "Système d'Echange de Quotas d'Emission",
+"url": "https://www.ecologie.gouv.fr/politiques-publiques/systeme-dechange-quotas-demission",
+"date": "2016-10-12",
+"last_updated": "2026-04-07"
+},
+{
+"snippet": "",
+"title": "Marchés du carbone - SEQE-UE",
+"url": "https://www.ecologie.gouv.fr/politiques-publiques/marches-du-carbone-seqe-ue",
+"date": "2023-10-10",
+"last_updated": "2026-05-04"
+},
+{
+"snippet": "",
+"title": "Marchés du carbone - SEQE-UE 2",
+"url": "https://www.ecologie.gouv.fr/politiques-publiques/marches-du-carbone-seqe-ue-2",
+"date": "2026-02-16",
+"last_updated": "2026-05-22"
+},
+{
+"snippet": "",
+"title": "Système d'échange de quotas d'émission de l'Union européenne — Wikipédia",
+"url": "https://fr.wikipedia.org/wiki/Syst%C3%A8me_d'%C3%A9change_de_quotas_d'%C3%A9mission_de_l'Union_europ%C3%A9enne",
+"date": "2005-12-24",
+"last_updated": "2026-05-22"
+},
+{
+"snippet": "",
+"title": "FR",
+"url": "https://www.europarl.europa.eu/RegData/docs_autres_institutions/commission_europeenne/com/2020/0740/COM_COM(2020)0740_FR.pdf",
+"date": null,
+"last_updated": "2025-09-06"
+},
+{
+"snippet": "",
+"title": "Questions et réponses – Échange de quotas d'émission – Mettre un prix",
+"url": "https://ec.europa.eu/commission/presscorner/api/files/document/print/fr/qanda_21_3542/QANDA_21_3542_FR.pdf",
+"date": null,
+"last_updated": "2025-09-23"
+},
+{
+"snippet": "",
+"title": "Commission européenne - Questions et réponses",
+"url": "https://ec.europa.eu/commission/presscorner/api/files/document/print/fr/qanda_21_3542/QANDA_21_3542_FR.pdf&rut=0b54d265a7ec0a40fb6d973db812b879e90058194a9daf2881bfe68aec33a06b",
+"date": null,
+"last_updated": "2025-06-05"
+},
+{
+"snippet": "",
+"title": "Marché du carbone : quota et bourse, droit à polluer, acteurs",
+"url": "https://www.connaissancedesenergies.org/fiche-pedagogique/marches-du-carbone",
+"date": "2011-09-14",
+"last_updated": "2026-03-04"
+},
+{
+"snippet": "###\nLe marché du carbone est un mécanisme permettant l’**échange de droits d’émission de gaz à effet de serre (GES)**.\nIl s’agit d’une des mesures incitatives prévues par le Protocole de Kyoto signé en 1997 pour encourager les États à réduire leurs émissions polluantes et opter pour de nouvelles technologies à moindre coût.\nCe dispositif doit **faciliter la réalisation des objectifs climatiques** **collectifs**.\nAu sein d'un marché du carbone, un **plafond ** d'émissions est fixé à un niveau plus bas que le niveau d'émission réel.\nDes **quotas ** sont ensuite attribués aux responsables d'émissions de GES (pays, entreprises) :\n- si le pollueur réduit ses émissions en-dessous des quotas dont il dispose, il peut **revendre son droit à émettre non utilisé** ;\n- celui qui, au contraire, a pollué au-delà de son nombre de quotas doit en acheter à d'autres exploitants (ceux qui ne les ont pas tous utilisés).\nPour plus de flexibilité, les quotas peuvent être **empruntés** ou **épargnés**.\nLe système est **incitatif ** car le coût pour réduire les émissions est inférieur au prix du quota sur le marché.\nLe prix du quota dépend du niveau du plafond, qui est fixé en fonction des objectifs à atteindre et **abaissé chaque année**, afin de privilégier les efforts de réduction d'émissions.\n###\nSi plusieurs marchés régionaux s’établissent progressivement, l'un des plus importants est le marché du carbone de l'Union européenne (UE).\nIl couvre les émissions de GES de plusieurs secteurs (énergie, industrie lourde, trafic aérien...).\nMis en place par l’UE en 2005, le **système européen d’échange de quotas d’émissions de gaz à effet de serre (SEQE-UE)** vise à inciter les investissements dans des systèmes plus performants et plus écologiques, afin d'atteindre les objectifs climatiques de l'Union.\nLe marché européen du carbone a connu plusieurs phases, au cours desquelles de nouveaux secteurs ont successivement été intégrés (ex : le secteur de l'aviation, en 2012), tandis que le plafond annuel de quotas diminue chaque année.\nEn 2008, la crise économique a provoqué une chute du prix du carbone du fait de la baisse de l'activité économique, entraînant mécaniquement un surplus de quotas.\nDevenu moins incitatif, le SEQE-UE a fait l’objet de révisions permettant de retirer les quotas excédentaires, jusqu'à l’actuelle **phase 4 (2021-2030)**.\nOutre le système européen, la **Chine**,** premier émetteur mondial de GES**, a également mis en place un marché du carbone en **2021**.",
+"title": "Qu'est-ce que le marché du carbone ou système d'échanges de ...",
+"url": "https://www.vie-publique.fr/fiches/274841-quest-ce-que-le-marche-du-carbone-ou-systeme-dechanges-de-quotas",
+"date": "2020-06-26",
+"last_updated": "2026-05-27"
+},
+{
+"snippet": "",
+"title": "Marché des quotas carbone — Wikipédia",
+"url": "https://fr.wikipedia.org/wiki/March%C3%A9_des_quotas_carbone",
+"date": "2007-08-15",
+"last_updated": "2026-03-14"
+}
+],
+"server_time": null
+}
+
+​
+Language Filtering for Web Search
+The search_language_filter parameter allows you to filter search results by language using ISO 639-1 language codes:
+
+Python
+
+Typescript
+JavaScript
+cURL
+
+from perplexity import Perplexity
+
+client = Perplexity()
+
+# Search for English, French, and German language results
+search = client.search.create(
+query="explanation of how large language models are trained: pretraining, supervised fine-tuning, and reinforcement learning from human feedback",
+search_language_filter=["en", "fr", "de"],
+max_results=10
+)
+
+for result in search.results:
+print(f"{result.title}: {result.url}")
+
+import Perplexity from '@perplexity-ai/perplexity_ai';
+
+const client = new Perplexity();
+
+// Search for English, French, and German language results
+const search = await client.search.create({
+query: "explanation of how large language models are trained: pretraining, supervised fine-tuning, and reinforcement learning from human feedback",
+search_language_filter: ["en", "fr", "de"],
+max_results: 10
+});
+
+for (const result of search.results) {
+console.log(`${result.title}: ${result.url}`);
+}
+
+const Perplexity = require('@perplexity-ai/perplexity_ai');
+
+const client = new Perplexity();
+
+async function main() {
+// Search for English, French, and German language results
+const search = await client.search.create({
+query: "explanation of how large language models are trained: pretraining, supervised fine-tuning, and reinforcement learning from human feedback",
+search_language_filter: ["en", "fr", "de"],
+max_results: 10
+});
+
+for (const result of search.results) {
+console.log(`${result.title}: ${result.url}`);
+}
+}
+
+main();
+
+curl -X POST 'https://api.perplexity.ai/search' \
+-H "Authorization: Bearer $PERPLEXITY_API_KEY" \
+-H 'Content-Type: application/json' \
+-d '{
+"query": "explanation of how large language models are trained: pretraining, supervised fine-tuning, and reinforcement learning from human feedback",
+"search_language_filter": ["en", "fr", "de"],
+"max_results": 10
+}' | jq
+
+Response
+
+{
+"id": "59261fd2-1c4f-4439-88b0-24df4e941a69",
+"results": [
+{
+"snippet": "",
+"title": "Fine-tune large language models with reinforcement ...",
+"url": "https://aws.amazon.com/blogs/machine-learning/fine-tune-large-language-models-with-reinforcement-learning-from-human-or-ai-feedback/",
+"date": "2025-04-04",
+"last_updated": "2026-05-27"
+},
+{
+"snippet": "",
+"title": "LLM Training: The Process, Stages, and Fine-Tuning Gritty Details",
+"url": "https://itrexgroup.com/blog/llm-training/",
+"date": "2025-06-02",
+"last_updated": "2026-05-24"
+},
+{
+"snippet": "In situations where a model capable of performing a specific task is required, fine-tuning a large pre-trained language model becomes a more efficient approach.\nFine-tuning consumes considerably less time and computing power compared to the extensive requirements of training a model from scratch.\nUnlike starting from scratch, fine-tuning doesn’t involve training every parameter from scratch; instead, it refines the already-established parameters to suit the demands of a particular use case.\nLet’s dive in to pre-training and fine-tuning of Large Language Models.\n...\nPre-training a large language model is done in a self-supervised way, meaning it is trained with unlabeled data which is just text from the internet.\nThere is no need to assign labels on the dataset.\nWhile training, model learns to internalize the patterns and structures present in the language.\nBut internet is filled with biased, incorrect and misspelled text, therefore there needs to be a filter to remove the unnecessary data from the dataset.\nBecause these type of data would only hinder the model’s performance rather than improving it.\nLet’s call this a data quality filter.\nAfter filtering the dirty data, the training can be started.\nThere are three variances of a transformer model and each of them are trained with a different objective: encoder-only, decoder-only and encoder-decoder.\nWhichever transformer model is being trained, the first step is the same.\nThe encoder generates embedding for the tokens.\nEmbeddings are vectors that represent the token’s semantic information.\nAfter that, the training steps diverge.\nAs I said before, there are three variances of a transformer model.\nEven though objectives of these model’s trainings are different, the main intuition is similar.\nMask a word in a sentence and then try to guess the word.\nPretty simple right?\n1. **Autoencoding models:** Autoencoding models consist only of an encoder.\nAutoencoding models predict the masked word from the every preceding and following words in the sentence, therefore it is bi-directional.\nSo the model has the knowledge of the entire context.\nThat’s why autoencoding models are best for tasks like sentence classification, sentiment analysis and named entity recognition.\n2. **Autoregressive models:** Autoregressive models consist only of a decoder.\nAutoregressive models predict the masked word from the preceding words.\nThus autoregressive models are great at autocompleting a sentence, which is what happens in text generation models.\n3. **Sequence-to-sequence models:** Seq2Seq models consist of both the encoder and decoder.\nIn training random sequences of input(not just one word!) are masked, then replaced with a unique token sentinel.\nThe output is the sentinel token followed by the predicted tokens.\nIn summary, seq2seq models both need to understand the context and generate a text.\nSo they are great at tasks like summarization, language translation and question-answering.\nThese are the three variances and their training objectives.\nAs we can see there is no effort for input labeling, but the training requires a lot of text data consisting of trillion words.\nSo training a large language model takes a lot of time and computing power, for these reasons alone training a large language model should only be done if it is absolutely necessary.\n...\nFine-tuning is the training continuation of general large model to make the model capable of a specific task.\nPre-trained models are not application ready models, they are more like general purpose models, fine-tuning must be done to make the model specialized on a of specific use case.\nIf we use an analogy, a pre-trained model is like a PCP and fine-tuned model is like a cardiologist.\n...\nOkay, we understood why we need to fine-tune a model.\nBut how do we fine-tune a model?\nFine-tuning a large language model is very different from pre-training an LLM.\nFine-tuning uses supervised learning unlike pre-training.\nTherefore the features require a label.\nFor instance, if we are trying to build a model that answers history questions, a fine-tuning data would look like this:\nUnlike pre-training an LLM, fine-tuning does not need billions of data.\nIt only requires a few thousand in most cases, since the model already has the general knowledge of the language, it only needs to learn to do the specific task.\nEven though the main intuition of fine-tuning an LLM is as I have explained, there are three different ways to fine-tune an LLM:\n1. Instruction fine-tuning\n2. Parameterized efficient fine-tuning(PEFT)\n3. Reinforcement learning human feedback(RLHF)\n### 1.\nInstruction fine-tuning\nThe training dataset for fine-tuning consists of prompt-completion pairs.\nSo we create a dataset with the question or prompts and the answer we want from the LLM which is also called ground truth.\nThe model predicts an answer and the answer is compared to the ground truth to calculate some kind of loss(evaluation metrics will be explained in the next article).\nFrom the loss, the algorithm calculates the gradient of loss to weights and then updates the weights.\nSo it is a simple neural network training procedure.\nLet’s study an example to understand the process a little bit better.\nOur example is fine-tuning a model for sentiment analysis.\nThe model predicts whether the review is positive, neutral or negative.\n1. Firstly after preparing the prompt-completion pair dataset.\nWe divide the dataset to create both training and test dataset.\n2. During fine-tuning, we give prompts to LLM which then generates a completion\n3. Then we compare the result with the ground truth(in our example the LLM gave a wrong answer)\n4. Remember that the output of an LLM is a probability distribution across tokens.\nSo you can compare the distribution of the completion and that of the training label and use the standard cross-entropy function to calculate loss.\n5. And then we use the loss to update the model weights\nAs it can be seen, it is a very simple and effective process.\n...\nTo solve this issue, the model can be trained in multiple tasks.\nWe just need a dataset containing prompt-completion pairs for multiple tasks.\n...\nIn contrast to instruction fine-tuning, parameterized efficient fine-tuning only updates a small section of weights.\nSo it is less prune to catastrophic forgetting and also requires much less computing power.\nThere are three ways to do fine tuning with parameterized efficient fine-tuning:\n**a.\nSelective methods:**\nSelective methods fine-tune only a subset of the original LLM parameters.\n**b.\nReparameterization:**\nReparameterization reduces the number of parameters to train by creating low rank transformations of the original network weights.\nLoRA can be given as example.\n**c.\nAdditive:**\n- adapters: keeps all the original LLM weights frozen and add new trainable components\n- soft prompts: keep the original LLM weights frozen and focus on manipulating the input to achieve better performance\nAs it can be seen some techniques freeze most of the model weights and updates only a small section of it and some don’t even touch the original model at all and add new parameters or layers to train.\n...\nAnother great thing about PEFT is that you can train multiple layers for different tasks and these layers can be swapped during inference.\nThus achieving a multi-task model.\n...\nReinforcement learning human feedback(RLHF)\nA popular method to fine-tune a model using human feedback is called reinforcement learning human feedback.\nRLHF utilizes reinforcement learning which is one of the three techniques of machine learning alongside supervised and unsupervised learning.\nRL is a problem-solving method based on the assumption that an agent must learn the best behavior to achieve a task via trial-and-error interactions with a dynamic and unpredictable environment.\n...\nNow that we understood the main idea of reinforcement learning, we can not look into reinforcement learning human feedback in large language models.\nWith RLHF, the agent is the LLM model.\nThe action that the model will take, meaning which token it will choose next, depends on the prompt text in the context and the probability distribution over the vocabulary space.\nThe reward is assigned based on how closely the completions align with human preferences.\nThe LLM weights are then updated iteratively to maximize the reward obtained from the human classifier, enabling the model to generate non-toxic completions.\nYou can use two techniques to calculate reward:\n- human expert\n- additional model called reward model to classify outputs of the LLM\n## Conclusion\nIn conclusion, the integration of Large Language Models (LLMs) into applications involves critical decisions, particularly regarding whether to use existing pre-trained models or to embark on the resource-intensive process of training a model from scratch.\nPre-training lays the foundation for LLMs, involving self-supervised learning on vast amounts of unlabeled data.\nThe three variants of transformer models — autoencoding, autoregressive, and sequence-to-sequence — serve distinct purposes and are trained with different objectives.\nHowever, fine-tuning becomes crucial to tailor these general-purpose models to specific tasks.\nUnlike pre-training, fine-tuning utilizes supervised learning with labeled data, and various approaches, such as instruction fine-tuning, parameterized efficient fine-tuning (PEFT), and reinforcement learning with human feedback (RLHF), offer different strategies for this process.\nThe choice between pre-training and fine-tuning depends on the specific application requirements, considering factors such as computational resources, task complexity, and the need for domain-specific expertise.",
+"title": "Everything to learn about Large Language Models(Part 2/3 ...",
+"url": "https://medium.com/@aydinKerem/everything-to-learn-about-large-language-models-part-2-3-pre-training-and-fine-tuning-5fc68700701a",
+"date": "2023-12-02",
+"last_updated": "2026-05-19"
+},
+{
+"snippet": "",
+"title": "Illustrating Reinforcement Learning from Human Feedback (RLHF)",
+"url": "https://huggingface.co/blog/rlhf",
+"date": "2022-12-09",
+"last_updated": "2026-05-22"
+},
+{
+"snippet": "",
+"title": "How Developers Steer Language Model Outputs: Large ... - CSET",
+"url": "https://cset.georgetown.edu/article/how-developers-steer-language-model-outputs-large-language-models-explained-part-2/",
+"date": "2024-03-08",
+"last_updated": "2026-05-27"
+},
+{
+"snippet": "",
+"title": "How Large Language Models (LLMs) are Trained ? | Pre-Training | Supervised Fine Tuning (SFT) | RLHF",
+"url": "https://www.youtube.com/watch?v=vEqaew-D28U",
+"date": "2026-04-25",
+"last_updated": "2026-05-26"
+},
+{
+"snippet": "",
+"title": "What Are Large Language Models (LLMs)?",
+"url": "https://www.ibm.com/think/topics/large-language-models",
+"date": "2021-10-06",
+"last_updated": "2026-03-31"
+},
+{
+"snippet": "",
+"title": "LLM Training Explained Pretraining SFT RLHF BERT Fine Tuning Part 2",
+"url": "https://www.youtube.com/watch?v=kbwO5o2Fk0I",
+"date": "2026-03-27",
+"last_updated": "2026-05-07"
+},
+{
+"snippet": "",
+"title": "Reinforcement learning from human feedback - Wikipedia",
+"url": "https://en.wikipedia.org/wiki/Reinforcement_learning_from_human_feedback",
+"date": "2023-03-04",
+"last_updated": "2026-04-13"
+},
+{
+"snippet": "# Supervised Fine-Tuning\nFor supervised fine-tuning (SFT) — as well as for any of the following alignment methods — the model is pretrained for next token prediction on a massive, unlabeled dataset.\nThis alone is not enough to ensure helpful responses.\nAfter pretraining, SFT uses a dataset of prompt-response pairs.\nThe responses are **written by human labelers** and should represent the alignment values (honesty, helpfulness, etc.) to act as the ground truth for supervised learning.\nWith only a few thousand examples, the dataset for SFT is is much smaller than the massive amounts of unlabeled text data used during pretraining.\nFor example, for the SFT stage of InstructGPT, only 11,295 data points were used.\nDespite this, the responses generated by the fine-tuned model consistently outperform the ones of the pretrained model in human preference ratings.\nIn supervised fine-tuning the model learns to imitate responses preferred by humans.\nHowever, the quality of results heavily depends on the quality of human-written responses.\nAn idea to improve generalization, one approach is to train a reward model that quantifies how much a given response aligns with human preferences.\n...\nReinforcement learning (RL) is a powerful technique to go beyond simple imitation by encouraging exploration during the training process.\nA core component of RL is the **reward function**, which guides learning by assigning a score to outputs.\nHowever in the context of large language models, it is not trivial to define a reward function that accurately represents human values.\nIn reinforcement learning from human feedback (RLHF), the reward function is approximated by training a **reward model **(RM)** **on human-labeled data.\nFirst, a dataset is created by generating multiple responses to a given prompt and having a human rank their overall quality against each other.\nEach datapoint consists of a prompt and a set of responses ordered by human preference.\nThe RM is then trained supervised on pairs of responses: prompt + response_i + response_j for all i≠j using a cross-entropy loss.\nSecond, the LLM is fine-tuned via reinforcement learning.\nThe scalar output of the RM (the reward) represents how well the model’s output aligns with human preferences, based on the rankings collected in step one.\nUsually **proximal policy optimization** (PPO) is the algorithm used for RL applications due to its simplicity and stability.\n...\nRLHF is used to fine-tune language models **after a supervised fine-tuning (SFT) stage** as described in the previous section.\nIt further outperforms the pretrained model, as well as the SFT-only model on human preference ratings significantly.\n...\nThe idea of Direct Preference Optimization (DPO) is to eliminate the need to train a reward model for reinforcement learning by directly incorporating preference information in the loss function.\nThe gathering of preference data works the same as for RLHF with one minor difference: for each prompt, exactly two responses are generated and ranked in DPO, while in RLHF the number of responses can vary.\n...\nWith this understanding of log-likelihoods, it becomes clear how DPO eliminates the need for a separate reward model.\nFor each datapoint — consisting of a prompt, the human-preferred response and the human-rejected response — both log-likelihoods are calculated.\nDPO then “pushes” the LLM towards the better response by applying a binary cross-entropy loss:\nIn addition to the log-likelihoods of the LLM being fine-tuned, the loss function makes use of the log-likelihoods of a reference model.\nThe reference model is the original LLM used to generate the dataset (LLM_theta_0).\nIncluding the reference model helps ensure that the fine-tuned responses don’t drift too far from the original model’s behavior, maintaining helpfulness.\nDuring fine-tuning the LLM does not generate any more outputs.\nInstead, the training relies on the log-likelihoods of already existing responses.\n...\nBoth RLHF and DPO rely on human-generated rankings of LLM outputs to either train a reward model or to optimize likelihood-based objectives.\n...\nReinforcement learning from AI-feedback (RLAIF) addresses this issue by replacing human labelers with a **feedback model**.\nThis enables more efficient creation of preference data.\nThe Constitutional AI approach by **Anthropic** uses RLAIF to fine-tune the large language models.\nInstead of relying on human labelers, it uses a pretrained LLM — specifically Claude — as the feedback model to collect the rankings.\nAfter generating two responses, A and B, for a given prompt, Claude is prompted to compare the two and select the one that aligns better with a set of principles.\n...\nThe resulting preference is then used as training data for a reward model.\nApart from how the preference data is gathered, the fine-tuning pipeline of RLAIF is identical to that of reinforcement learning from human feedback (RLHF), as described above.\n...\nA more **explicit** approach of aligning an LLM is to define a set of rules and principles the LLM should represent and have it learn to follow those rules.\n...\nInstead of showing an LLM thousands of human-preferred responses to guide it towards generating high-quality outputs, a different approach is to have the LLM self-critique and revise the generated responses according to a set of rules and principles — the “constitution”.\nA practical approach of constitution-based alignment is Constitutional AI by Anthropic.\nHere, a supervised fine-tuned LLM (see above: SFT) is used to generate additional high-quality responses, which are then used to improve the model through further supervised learning.\nFor a given prompt, the LLM generates a response.\nThe response is then combined with the constitution to form a **critique request**.\nA typical critique request looks like this:\n\u0060\u0060\u0060\nCritique Request: Identify specific ways in which the assistant’slast response is harmful, unethical, racist, sexist, toxic,dangerous, or illegal.\n...\nThe original response and the critique request are fed back into the LLM to generate a critique.\nThe critique is then combined with the original output and a **revision request** to produce a revised version of the original output that is better aligned with the rules in the constitution.\n...\nThis step of self-critique and revision can be repeated multiple times before the final revision is used as the ground truth for further supervised fine-tuning.\nAfter incorporating the rules and values of the constitution into the LLM through repeated self-critique and revision, the next step is to further refine the model using Reinforcement Learning from AI-Feedback (RLAIF).\n...\n# Summary\nIn this article, we explored the core ideas of **training-based** strategies for aligning large language models.\nWe began with **supervised fine-tuning **(SFT), where human-written responses are used as the ground truth to guide the model’s behavior.\nThen we looked at **reinforcement learning from human feedback** (RLHF), which involves training a **reward model** on human preference rankings of responses to use in reinforcement learning.\nBuilding on RLHF, we discussed three evolutions of the approach:\n- **Direct preference optimization** (DPO) removes the need for a reward model by using a cleverly designed loss function with the help of log-likelihoods.\n- **Reinforcement learning from AI-feedback** (RLAIF) removes the need for human ranking of responses by using a pretrained, off-the-shelf LLM — such as Claude — to create the rankings.\n- Last, we talked about **constitution-based alignment**, specifically Constitutional AI.\nInstead of **implicitly** showing the LLM human-preferred outputs, a **constitution** of **explicit** rules and principles is defined.\nThe LLM then learns to follow the constitution by repeated self-critique and revisions.",
+"title": "Alignment of Large Language Models Through Training: SFT, RLHF, DPO and More",
+"url": "https://medium.com/@leander.heine/alignment-of-large-language-models-through-training-sft-rlhf-dpo-and-more-472e2e0d9695",
+"date": "2025-07-01",
+"last_updated": "2025-07-29"
+}
+],
+"server_time": null
+}
+
+Language codes must be valid 2-letter ISO 639-1 codes (e.g., “en”, “ru”, “fr”). You can add a maximum of 10 language codes per request. See the language filter guide for the complete list of supported codes.
+
+​
+Budget Control
+To choose how much content is extracted from result pages, use the search_context_size parameter. The following values are supported:
+
+low — short passages most relevant to the query.
+
+medium — a balanced amount of content per document.
+
+high (default) — detailed content relevant to the query.
+
+Use search_context_size: "low" for lightweight previews or to minimize downstream token usage.
+
+Python
+
+Typescript
+cURL
+
+from perplexity import Perplexity
+
+client = Perplexity()
+
+search = client.search.create(
+query="AI news headlines",
+max_results=10,
+search_context_size="low"
+)
+
+for result in search.results:
+print(f"{result.title}: {result.snippet[:100]}...")
+
+import Perplexity from '@perplexity-ai/perplexity_ai';
+
+const client = new Perplexity();
+
+const search = await client.search.create({
+query: "AI news headlines",
+max_results: 3,
+search_context_size: "low"
+});
+
+for (const result of search.results) {
+console.log(`${result.title}: ${result.snippet.substring(0, 100)}...`);
+}
+
+curl -X POST 'https://api.perplexity.ai/search' \
+-H "Authorization: Bearer $PERPLEXITY_API_KEY" \
+-H 'Content-Type: application/json' \
+-d '{
+"query": "AI news headlines",
+"max_results": 3,
+"search_context_size": "low"
+}' | jq
+
+​
+Manual Token Budgets
+Use max_tokens and max_tokens_per_page when you need manual control over exact content limits for response size, total tokens returned, evaluations, or downstream context-window and cost management.
+
+max_tokens caps the total webpage content returned across all results. Allows up to 1,000,000 tokens.
+
+max_tokens_per_page caps content extracted from each result page.
+
+Higher values return more extracted content; lower values keep the returned content shorter for tighter response-size, downstream context-window, or token-cost budgets.
+search_context_size and explicit budgets interact as follows:
+
+If neither search_context_size nor budgets are specified, the default search_context_size is applied.
+
+If both max_tokens and max_tokens_per_page are specified without search_context_size, those budgets are used.
+
+If only one of max_tokens or max_tokens_per_page is specified without search_context_size, the other falls back to the value from the default search_context_size.
+
+search_context_size cannot be combined with max_tokens or max_tokens_per_page in the same request.
+
+Python
+
+Typescript
+cURL
+
+from perplexity import Perplexity
+
+client = Perplexity()
+
+# Higher token budget = more content in snippets
+detailed_search = client.search.create(
+query="renewable energy technologies",
+max_results=10,
+max_tokens=50000, # Total content budget across all results
+max_tokens_per_page=4096 # Per-result limit
+)
+
+# Lower token budget = shorter snippets
+brief_search = client.search.create(
+query="S&P 500 historical closing levels and US equity index performance",
+max_results=5,
+max_tokens=5000
+)
+
+for result in detailed_search.results:
+print(f"{result.title}: {len(result.snippet)} chars")
+
+import Perplexity from '@perplexity-ai/perplexity_ai';
+
+const client = new Perplexity();
+
+// Higher token budget = more content in snippets
+const detailedSearch = await client.search.create({
+query: "renewable energy technologies",
+max_results: 10,
+max_tokens: 50000, // Total content budget across all results
+max_tokens_per_page: 4096 // Per-result limit
+});
+
+// Lower token budget = shorter snippets
+const briefSearch = await client.search.create({
+query: "S&P 500 historical closing levels and US equity index performance",
+max_results: 5,
+max_tokens: 5000
+});
+
+for (const result of detailedSearch.results) {
+console.log(`${result.title}: ${result.snippet.length} chars`);
+}
+
+# Higher token budget for detailed content
+curl -X POST 'https://api.perplexity.ai/search' \
+-H "Authorization: Bearer $PERPLEXITY_API_KEY" \
+-H 'Content-Type: application/json' \
+-d '{
+"query": "renewable energy technologies",
+"max_results": 10,
+"max_tokens": 50000,
+"max_tokens_per_page": 4096
+}' | jq
+
+# Lower token budget for brief snippets
+curl -X POST 'https://api.perplexity.ai/search' \
+-H "Authorization: Bearer $PERPLEXITY_API_KEY" \
+-H 'Content-Type: application/json' \
+-d '{
+"query": "S&P 500 historical closing levels and US equity index performance",
+"max_results": 5,
+"max_tokens": 5000
+}' | jq
+
+Response — renewable energy technologies
+
+{
+"id": "58a969d2-452f-4950-97df-7cd74977d479",
+"results": [
+{
+"snippet": "EPA evaluated the following renewable energy technologies for this analysis.\nThey represent the most common types of renewable energy facilities being used as of 2021.\nThis is not an inclusive list of all renewable energy technologies; new technologies continue to be developed, while established technologies are refined.\n...\nSolar resource at a given location is typically characterized by the amount of solar energy striking a panel tilted up from the horizontal at an angle equal to the local latitude over a given area and reported as a daily average.\nSolar radiation is measured in kilowatt-hours per square meter per day (kWh/m2/day).\nPV cells convert the sun’s light energy directly into electricity.\nPV technology is scalable; the amount of electricity generated is directly related to the number and efficiency of installed panels.\nIt can technically be sited anywhere, though the economics may make a project unfeasible in lower resource areas.\n...\nWind energy is captured by wind turbines with propeller-like blades mounted on a tower.\nThe force of the wind causes the rotor to spin, and the turning shaft spins a turbine to generate electricity.\nWind technology is scalable; based on site conditions, different turbines designs can be used to meet different electricity needs.\n...\nBiomass energy, or “bioenergy,” is generated from organic feedstocks.\nWood is the most abundant and commonly used biomass energy resource; other sources of biomass include food crops, grassy and woody plants, residues from agriculture or forestry and the organic component of municipal and industrial wastes.\nThese feedstocks can be used as a solid fuel, or converted into liquid or gaseous forms, for the production of electric power, heat, chemicals or fuels.\nA biopower facility burns biomass resources to produce heat, which is used to boil water for a conventional steam-turbine generator to produce electricity.\nBiopower facilities use cumulative biomass resources that can include residues from forests, primary and secondary mills and urban wood waste.\nA biorefinery facility integrates biomass conversion processes and equipment to produce fuels, power and chemicals from biomass.\nThe technology uses cumulative crop residues that can include residues from crops or forests, primary and secondary mills and urban wood waste.\n...\nEnergy can also be generated by capturing methane and other emissions from landfills.\nSee EPA’s Landfill Methane Outreach Program for more information about landfill gas energy technologies.\n## Geothermal\nGeothermal resource is typically characterized by temperature at a given depth, availability of water resources and permeability of geologic layers.\nA geothermal heat pump (GHP) system exchanges heat in the shallow subsurface.\nIn most locations without permafrost, the upper 10 feet of the Earth maintains a nearly constant temperature between 50° and 60°F (10°–16°C).\nGHPs take advantage of this resource to heat and cool buildings and heat water.\nGHPs consist of three parts: the ground loop heat exchanger, the heat pump unit and the air delivery system (ductwork).\nThe ground loop heat exchanger is a system of pipes buried in the shallow ground near the building, or in a vertical well if land for a horizontal loop is limited.\nWater source heat pumps work on the same principle as ground source systems, but they use an adjacent body of water as the heat sink.\nA fluid (usually water or a mixture of water and antifreeze) circulates through the loop to absorb or reject heat from the ground.\nGHPs use much less energy than conventional heating systems since they draw heat from the ground, avoiding the high and low swings of ambient air temperatures.\nGHPs typically serve a single property, though they may also be viable for use in multi-tenant applications, such as integrated district heating systems.",
+"title": "Appendix B: Renewable Energy Technology Basics",
+"url": "https://www.epa.gov/re-powering/appendix-b-renewable-energy-technology-basics",
+"date": "2025-07-24",
+"last_updated": "2025-10-16"
+},
+{
+"snippet": "Renewable energy is energy derived from natural sources that are replenished at a higher rate than they are consumed.\nSunlight and wind, for example, are such sources that are constantly being replenished.\nRenewable energy sources are plentiful and all around us.\n...\n## Here are a few common sources of renewable energy:\n...\nSolar energy is the most abundant of all energy resources and can even be harnessed in cloudy weather.\nThe rate at which solar energy is intercepted by the Earth is about 10,000 times greater than the rate at which humankind consumes energy.\nSolar technologies can deliver heat, cooling, natural lighting, electricity, and fuels for a host of applications.\nSolar technologies convert sunlight into electrical energy either through photovoltaic panels or through mirrors that concentrate solar radiation.\n...\nWind energy harnesses the kinetic energy of moving air by using large wind turbines located on land (onshore) or in sea- or freshwater (offshore).\nWind energy has been used for millennia, but onshore and offshore wind energy technologies have evolved over the last few years to maximize the electricity produced - with taller turbines and larger rotor diameters.\n...\nGeothermal energy utilizes the accessible thermal energy from the Earth’s interior.\nHeat is extracted from geothermal reservoirs using wells or other means.\nReservoirs that are naturally sufficiently hot and permeable are called hydrothermal reservoirs, whereas reservoirs that are sufficiently hot but that are improved with hydraulic stimulation are called enhanced geothermal systems.\nOnce at the surface, fluids of various temperatures can be used to generate electricity.\nThe technology for electricity generation from hydrothermal reservoirs is mature and reliable, and has been operating for more than 100 years.\n...\nHydropower harnesses the energy of water moving from higher to lower elevations.\nIt can be generated from reservoirs and rivers.\nReservoir hydropower plants rely on stored water in a reservoir, while run-of-river hydropower plants harness energy from the available flow of the river.\nHydropower reservoirs often have multiple uses - providing drinking water, water for irrigation, flood and drought control, navigation services, as well as energy supply.\nHydropower currently is the largest source of renewable energy in the electricity sector.\n...\nOcean energy derives from technologies that use the kinetic and thermal energy of seawater - waves or currents for instance - to produce electricity or heat.\nOcean energy systems are still at an early stage of development, with a number of prototype wave and tidal current devices being explored.\nThe theoretical potential for ocean energy easily exceeds present human energy requirements.\n...\nBioenergy is produced from a variety of organic materials, called biomass, such as wood, charcoal, dung and other manures for heat and power production, and agricultural crops for liquid biofuels.\nMost biomass is used in rural areas for cooking, lighting and space heating, generally by poorer populations in developing countries.\nModern biomass systems include dedicated crops or trees, residues from agriculture and forestry, and various organic waste streams.\nEnergy created by burning biomass creates greenhouse gas emissions, but at lower levels than burning fossil fuels like coal, oil or gas.",
+"title": "What is renewable energy? | United Nations",
+"url": "https://www.un.org/en/climatechange/what-is-renewable-energy",
+"date": null,
+"last_updated": "2026-04-30"
+},
+{
+"snippet": "Renewable energy sources are playing an increasingly pivotal role in the global shift towards sustainability management and green energy systems.\nBy harnessing inexhaustible resources such as sunlight, wind, and water, renewable technologies are not only enhancing energy efficiency but also driving significant environmental and economic benefits.\nAdvances in solar photovoltaics, wind turbines, and bioenergy are leading to higher energy conversion efficiencies and reduced greenhouse gas emissions.\n...\nRenewable energy sources have a profound impact on energy efficiency and sustainability, reshaping the global energy landscape.\nBy leveraging inexhaustible resources such as sunlight, wind, and water, renewable energy technologies significantly enhance energy efficiency.\nFor instance, solar photovoltaic (PV) systems and wind turbines generate electricity closer to the point of consumption, reducing transmission and distribution losses that plague conventional power systems.\nAdvances in these technologies have led to higher energy conversion efficiencies, with modern solar panels achieving efficiencies of over 22%, up from about 15% a decade ago.\n...\nRenewable sources produce little to no greenhouse gas emissions during operation, which is critical for mitigating climate change.\nReplacing fossil fuel-based power plants with wind, solar, and other renewables can drastically cut carbon dioxide emissions, fostering a cleaner environment.\nMoreover, renewables rely on natural processes that are naturally replenishing, ensuring a sustainable energy supply.\n...\nBelow are some innovations and breakthroughs in three different renewable energy sources – wind, ocean, and bioenergy.\n...\nOne innovation in wind energy has been the development of floating offshore wind turbines.\nThese turbines are anchored to the seabed using cables and can be placed in deeper waters where traditional turbines are not a feasible option.\nFloating offshore wind turbines increase energy production efficiency since stronger and more consistent winds can be found further offshore.\n...\nMoving on from floating offshore wind turbines, we have also witnessed more advanced blade designs for wind turbines.\n...\nOceans are the world’s largest untapped source of renewable energy and it is believed that by 2050, ocean energy can offer 10 percent of Europe’s current electricity demand.\nAn impressive innovation in ocean energy has been the creation of tidal stream generators.\nThese underwater turbines harness the kinetic energy of tidal currents.\nThey offer a reliable and predictable source of renewable energy due to the regularity of tidal cycles.\nThe MeyGen Project in Scotland, one of the biggest tidal energy installations in the world, is demonstrating the potential of tidal stream technology at a commercial scale.\nWave energy is another type of ocean energy that captures the movement of ocean and sea waves and uses it to create electricity.\nA useful innovation we have witnessed in the area of wave energy has been wave energy converters.\nDevices like oscillating water columns and point absorbers transform the energy from surface waves into electricity.\nThese technologies are advancing with more efficient conversion mechanisms and energy capture, increasing energy yield and reducing costs.\n...\nBioenergy is a type of renewable energy created when we burn biomass fuel.\nBiomass fuels come from organic materials like purpose-grown crops, organic waste, and harvest residues.\nAn innovation in bioenergy has been the creation of advanced biofuels.\nSecond and third-generation biofuels are created from non-food biomass and algae, respectively.\nThese biofuels provide higher energy yields and lower greenhouse gas emissions compared to first-generation biofuels made from food crops.\nAnother innovation has been biogas upgrading technologies.\nNew processes like membrane separation and pressure swing adsorption enhance the purity and efficiency of biogas upgrading.\nThese technologies enhance the quality of biogas, making it suitable for injection into natural gas grids and use as vehicle fuel.\n...\nThe development and deployment of advanced energy storage systems, such as lithium-ion batteries, solid-state batteries, and flow batteries.\nEnhanced energy storage capabilities will address the intermittent nature of renewable sources like solar and wind, ensuring a stable and reliable energy supply.\n...\nIncreased focus on producing hydrogen using renewable energy, known as green hydrogen.\n...\nThe transformation towards renewable energy is reshaping the global energy landscape, offering substantial gains in energy efficiency and sustainability.\nInnovations such as floating offshore wind turbines, tidal stream generators, and advanced biofuels are setting new benchmarks for energy production and environmental stewardship.\nAs we look to the future, advancements in energy storage, green hydrogen production, AI integration, and floating solar farms are expected to drive further progress.\nEmbracing these technologies not only ensures a cleaner environment but also bolsters energy security and stimulates economic growth.",
+"title": "Renewable energy sources: Future innovations and breakthroughs",
+"url": "https://instituteofsustainabilitystudies.com/insights/lexicon/the-future-of-renewable-energy-innovations-and-breakthroughs/",
+"date": "2024-06-26",
+"last_updated": "2026-05-21"
+},
+{
+"snippet": "",
+"title": "Renewable energy - Wikipedia",
+"url": "https://en.wikipedia.org/wiki/Renewable_energy",
+"date": "2001-07-31",
+"last_updated": "2026-05-18"
+},
+{
+"snippet": "",
+"title": "Chapter 7 - Renewable Energy Technologies",
+"url": "https://www.undp.org/sites/g/files/zskgke326/files/publications/chapter7.pdf",
+"date": null,
+"last_updated": "2025-04-13"
+},
+{
+"snippet": "",
+"title": "Overview on Renewable Energy Technology",
+"url": "https://www.osce.org/files/f/documents/2/b/41338.pdf",
+"date": null,
+"last_updated": "2024-10-30"
+},
+{
+"snippet": "Renewable energy is derived from resources that are replenished naturally on a human timescale.\nSuch resources include biomass, geothermal heat, sunlight, water, and wind.\nAll of these sources have their strengths and weaknesses.\nSome are more suited to certain locations than others, for instance.\nSome only produce electricity intermittently (when the sun is shining in the case of solar), though they can be paired with energy storage solutions to provide reliable electricity 24 hours a day throughout the year.\nOthers, such as biomass, hydropower, and geothermal, can be used as baseload generation, producing a constant, predictable supply of electricity.\nNone of these sources can meet all of our electricity needs effectively.\nBut, together, they can completely displace fossil fuels without increasing the cost of electricity.\nBelow you will find a quick overview of the different renewable energy technologies, with links to more in-depth information.\nImplementing all of these renewable energy technologies, in addition to energy efficiency measures, not only leads to fewer greenhouse gases and other air and water pollutants, but also leads to overall cost savings and enhanced energy security.\n### Bioenergy (biofuels and biomass)\nBiomass (plant or animal material) can be used to produce electricity, thermal energy, or transportation fuels.\nEvery region has its own locally generated biomass feedstocks from agriculture, forest, and urban sources.\n### Hydrogen Fuel Cells\nHydrogen fuel cells are a clean, reliable, quiet, and efficient source of high-quality electric power.\nThey use hydrogen as a fuel to drive an electrochemical process that produces electricity, with water and heat as the only by-products.\n### Hydropower and Other Water Technologies\nWater technologies can be used for electricity or thermal energy all across the country.\nAlthough there are few, if any, appropriate sites left to build large dams in the United States, there are many opportunities to expand energy production at dams without turbines and by using newer technologies in both rivers and oceans.\n### Wind\nWind energy can be used to generate electricity for utilities or individual buildings.\nThe best U.S. resources for utility-scale wind farms are in the Midwest, Texas and the West, as well as on offshore sites in the Great Lakes and off the Atlantic Coast.\n### Geothermal\nGeothermal energy, or the heat below the earth's surface, can be used for electricity or thermal energy.\nGeothermal heat pumps, which heat and cool buildings, are effective in all regions.\nGeothermal power plants, however, require more active geothermal sources that, in the United States, are primarily located in the West.\n### Solar\nSolar energy systems use the sun's rays for electricity or thermal energy.\nIn the United States, utility-scale solar power plants are located primarily in the Southwest.\nHowever, smaller scale rooftop photovoltaic cells and hot water systems are effective in all regions.",
+"title": "Geothermal",
+"url": "https://www.eesi.org/topics/renewable-energy/description",
+"date": null,
+"last_updated": "2026-04-16"
+},
+{
+"snippet": "Renewable energy is energy that comes from a source that won’t run out.\nThey are natural and self-replenishing, and usually have a low- or zero-carbon footprint.\nExamples of renewable energy sources include wind power, solar power, bioenergy (organic matter burned as a fuel) and hydroelectric, including tidal energy.\n...\nThere are four main sources of renewable energy used in the UK and US:\n...\nWind power is the largest producer of renewable electricity in both the UK and the US.\n**Onshore and offshore wind farms** generate electricity by spinning the blades of **wind turbines**.\nThe turbines convert the kinetic energy of the spinning blades into electric energy by turning a drive shaft and gear box, which is connected to a generator.\nElectricity is then converted into higher voltages and fed into the national grid.\n...\nSunlight is one of the planet’s most freely available energy resources, which you’d assume would make it the number one source of renewable energy.\n...\n**Solar power** generates electricity by capturing sunlight on solar panels in a joint chemical and physical reaction, known as the ‘photovoltaic effect’ (or PV).\n### Hydroelectric\nHydro power is created using the movement of flowing or falling water.** ** Hydroelectric power plants are found at dams and generate electricity through underwater turbines that turn a generator.\nHydro power also encompasses wave and tidal power, which rely on ocean forces to generate electricity at the mouths of large bodies of water, using similar technology.\n### Bioenergy\nElectricity can be generated when **organic matter is burned as a fuel source**.\nThese fuels are known as biomass and include anything from plants to timber to food waste.\nCarbon dioxide (CO~2~) is emitted when bioenergy is made, but these fuel sources are considered renewable because they can be regrown and absorb as much carbon as they emit across their lifespans.",
+"title": "What are the different types of renewable energy? - National Grid",
+"url": "https://www.nationalgrid.com/stories/energy-explained/what-are-different-types-renewable-energy",
+"date": null,
+"last_updated": "2026-05-21"
+},
+{
+"snippet": "# Description of renewable energy technologies\n#### Solar photovoltaic\nPhotovoltaic (PV) solar panels convert sunlight directly into electricity.\nThe panels are made up of a number of solar cells that contain the photovoltaic materials.\nThese systems have no moving parts, which distinguishes them from other renewable technologies.\nInstead, the photons from sunlight are captured within the solar cells, which excite electrons to generate an electric current.\nThe lower costs, compactness, and low maintenance make solar PV systems one of the most widely dispersed renewable energy technologies.\n#### CSP parabolic trough\nParabolic trough systems consist of many parabola-shaped mirrors that direct heat from sunlight toward tubes full of flowing fluid or steam.\nThis fluid reaches an industrial steam generator to produce electricity.\nWith storage capacity for the heated substance, this technology has the potential to produce electricity when the sun goes down.\n#### CSP parabolic dish\nParabolic dish systems are mirrored dishes that look similar to a satellite dish.\nThey reflect the sunlight to central points in front of each dish, where the heat is transferred to a liquid or gas.\nThe heated fluid or gas then powers a generator to create electricity.\nSterling engine designs used to generate electricity beneficial due to their size and the fact that they use no water.\nEach parabolic dish’s generating capacity ranges from 10 kW to 25 kW.\n#### CSP power tower\nPower towers consist of a multitude of moving mirrors surrounding a large tower.\nThe mirrors focus the solar heat toward a center point at the top of the tower where either molten salt or water is heated and cycled down to a generator to produce electricity.\nMolten salt can be stored, allowing for the production of electricity after the sun goes down.\n#### Wind turbines\nWind turbines use the kinetic energy from the wind to generate electricity.\nThere are variations in size and design but they function similarly.\nThe wind causes the blades and rotor to spin, which drives gears that powers a generator within the turbine and generates electricity.\nThe most widely used turbines have a horizontal axis and can be up to 500 feet high.\n#### Geothermal\nGeothermal electricity production taps into the natural heat generated in the earth’s crust.\nThere are a number of designs to utilize the heat in order to produce steam.\nThis steam is then captured at geothermal power plants to power thermal generators and produce electricity.\n#### Biogas power plants\nBiogas electricity generation is electricity generated from gases produced by organic material.\nGas is produced from organic matter, agricultural waste, aquatic plants, vegetative waste, and wood waste or animal and human waste through anaerobic digestion, oxidization, or gasification.\nThe resulting gas, similar to natural gas, is burned to produce steam and power a generator to create electricity.\n#### Hydroelectric\nHydroelectric generation captures energy from the flow of water.\nWater is stored behind a dam in a reservoir, then passes through an enclosed area where it turns a turbine that generates electricity.\nHydroelectricity has been utilized for many years.\n#### Biomass electricity\nBiomass electricity generation produces electricity by burning any raw or processed organic plant matter.\nThis technology essentially uses the same process as a coal or natural gas plant but instead burns biomass.\nIt is considered renewable if the biomass source continues to grow back.",
+"title": "Description of Renewable Energy Technologies | Clean Energy Research and Education",
+"url": "https://in.nau.edu/clean-energy-research/renewable-energy-technologies/",
+"date": null,
+"last_updated": "2025-07-26"
+},
+{
+"snippet": "",
+"title": "renewable energy technology: Topics by Science.gov",
+"url": "https://www.science.gov/topicpages/r/renewable+energy+technology",
+"date": null,
+"last_updated": "2026-05-16"
+}
+],
+"server_time": null
+}
+
+Response — S&P 500 historical closing levels and US equity index performance
+
+{
+"id": "0d468d29-d3dc-4f60-85e9-a1bbd1530a58",
+"results": [
+{
+"snippet": "Observations\n2026-05-22: 7,473.47 |\nIndex, Not Seasonally Adjusted |\nDaily,\nClose\nUpdated: May 22, 2026 7:01 PM CDT\n...\n|2026-05-22:|7,473.47|\n|--|--|\n|2026-05-21:|7,445.72|\n|2026-05-20:|7,432.97|\n|2026-05-19:|7,353.61|\n|2026-05-18:|7,403.05|",
+"title": "S&P 500 (SP500) | FRED | St. Louis Fed",
+"url": "https://fred.stlouisfed.org/series/SP500",
+"date": "2026-05-22",
+"last_updated": "2026-05-23"
+},
+{
+"snippet": "|6,471.54|6,444.73|6,471.73|6,440.98|+0.08%|\n|--|--|--|--|--|\n|6,466.58|6,462.67|6,480.28|6,445.02|+0.32%|\n|6,445.76|6,395.17|6,446.55|6,385.76|+1.13%|\n|6,373.45|6,389.67|6,407.25|6,364.06|-0.25%|\n|6,389.45|6,355.22|6,395.16|6,355.22|+0.78%|\n|6,340.00|6,374.32|6,389.71|6,310.32|-0.08%|\n|6,345.06|6,309.30|6,352.83|6,301.11|+0.73%|\n|6,299.19|6,336.63|6,346.00|6,289.37|-0.49%|\n|6,329.94|6,271.71|6,330.69|6,271.71|+1.47%|\n|6,238.01|6,287.28|6,287.28|6,212.69|-1.60%|\n|6,339.39|6,427.02|6,427.02|6,327.64|-0.37%|\n|6,362.90|6,381.23|6,396.54|6,336.38|-0.12%|\n|6,370.86|6,405.62|6,409.26|6,363.92|-0.30%|\n|6,389.77|6,397.69|6,401.07|6,375.79|+0.02%|\n|6,388.64|6,370.01|6,395.82|6,368.53|+0.40%|\n|6,363.35|6,368.60|6,381.31|6,360.57|+0.07%|\n|6,358.91|6,326.90|6,360.64|6,317.49|+0.78%|\n|6,309.62|6,306.60|6,316.12|6,281.71|+0.06%|\n|6,305.60|6,304.74|6,336.08|6,303.79|+0.14%|\n|6,296.79|6,312.95|6,315.61|6,285.27|-0.01%|\n|6,297.36|6,263.40|6,304.69|6,262.27|+0.54%|\n|6,263.70|6,254.50|6,268.12|6,201.59|+0.32%|\n|6,243.76|6,295.29|6,302.04|6,241.68|-0.40%|\n|6,268.56|6,255.15|6,273.31|6,239.22|+0.14%|",
+"title": "S&P 500 Historical Data (SPX) - Investing.com",
+"url": "https://www.investing.com/indices/us-spx-500-historical-data",
+"date": "2025-08-13",
+"last_updated": "2025-08-14"
+},
+{
+"snippet": "A linear chart of the S&P 500 daily closing values from January 3, 1950, to February 19, 2016\nA logarithmic chart of the S&P 500 index daily closing values from January 3, 1950, to February 19, 2016\nA daily volume chart of the S&P 500 index from January 3, 1950, to February 19, 2016\n...\nSince its inception in 1926, the index's compound annual growth rate—including dividends—has been approximately 9.8% (6% after inflation), with the standard deviation of the return, calculated on a monthly basis, over the same time period being 20.81%.\nWhile the index has declined in several years by over 30%, it has posted annual increases 70% of the time, with 5% of all trading days resulting in record highs.",
+"title": "S&P 500 - Wikipedia",
+"url": "https://en.wikipedia.org/wiki/S&P_500",
+"date": "2003-01-19",
+"last_updated": "2026-05-21"
+},
+{
+"snippet": "This article is a summary of the **closing milestones of the S&P 500 Index**, a United States stock market index.\n...\nThe subsequent stock market crash on October 19, 1987 (Black Monday) saw the index lose 20.47% of its value, its highest daily percentage loss to date.\nFalling to 230.30 by November 1987, the index took until July 26, 1989, to recover to its pre-crash high of 336.77.\nClosing above 500 for the first time on March 24, 1995, the dot-com bubble of the late 1990s fueled increased market growth through the turn of the millennium, with the S&P 500 surpassing 800 on February 12, 1997, and 1,000 on February 2, 1998, with an intraday high of 1,552.87 on March 24, 2000.\nAs a result of the 2002 stock market downturn, the index fell to 768.83 by October 10, 2002, and took until October 11, 2007, to surpass its March 2000 intraday trading high.\nWhile a brief bull market in 2007 led to the index achieving new record closures of 1,530.23 on May 30 through to 1,565.15 on October 9, the bursting of the 2000s United States housing bubble led to the subprime mortgage crisis, the 2008 financial crisis, and the Great Recession.\nThese events, including the bankruptcy of Lehman Brothers, caused substantial market volatility that resulted in the S&P 500 closing up or down 3 percent or more 29 times in the fourth quarter of 2008.\nThis included an increase of 11.6% on October 13, 2008, the index's highest daily percentage gain to date.\nIn the year since its record closure of 1,565.15 in October 2007, the index fell by over 50% to 752.44 on November 20, 2008, its lowest point since March 1997.\nClosing the year at 903.25—a yearly loss of 38.5%—the index continued to decline in the first quarter of 2009, with the 2007–2009 bear market reaching a trough of 666 on March 6, 2009.\nThe drawdown from the high in October 2007 to the low in March 2009 was 56.8%, the largest since World War II.\nDespite this, the index recovered substantially in the following year, closing at 822.92 on March 23, 2009, and at 1,115.10 by the end of the year, making 2009 the index's second-best year of the decade.\nOn April 14, 2010, the index closed at 1,210.65, its first close above 1,200 since August 2008.\n...\nWhile this period of volatility continued into 2012 amid electoral and fiscal uncertainty and round 3 of quantitative easing, the index closed the year at 1,426.19, an annual gain of 13% and its biggest gain in 3 years.\nOn March 28 and April 10, 2013, the index's October 2007 closing and intraday trading highs, respectively, were surpassed for the first time, recovering all losses incurred during the Great Recession.\nThe index surpassed 2,000 for the first time on August 26, 2014, reaching an all-time closing high of 2,130.82 on May 21, 2015.\nIt was not surpassed until July 11, 2016, due to a market decline precipitated by the 2015–2016 stock market selloff and 2015–2016 Chinese stock market turbulence.\nThe index surpassed 2,500 on September 25, 2017, finishing the year up 19.4%, its best since 2013.\n...\nHigh market growth in the next two quarters reversed the prior year's losses by April 2019, with the index surpassing 3,000 on July 10.\nThe index closed the year with a growth rate of 28.9%, among its best to date.\nWhile the index reached a new closing peak of 3,386.15 on February 19, 2020, the onset of the COVID-19 pandemic and recession saw it lose 10% of its value in the next six trading days, its fastest drop from a new peak to date.\n...\nThe index reached a new record high of 3,756.07 by the end of the year, closing above 4,000 for the first time on April 1, 2021.\nBy the end of the year the index closed 70 of the year's 252 trading days at new record closing prices, the second highest to date behind the 77 recorded in 1995.\n2021 also marked the first year since 2005 when the S&P 500 beat the other two closely watched U.S. stock indices: the Dow Jones Industrial Average and the Nasdaq Composite.\n...\n### Milestone highs\n- February 2, 1998: The S&P 500 index reaches 1,000 points, closing at 1001.27.\n- March 24, 2000: The S&P 500 index reaches an all-time intraday high of 1552.87 during the dot-com bubble.\nIt hit this level again on July 13, 2007.\n- October 9, 2007: The index closes at a record high of 1565.15, the highest prior to the 2008 financial crisis.\nTwo days later, the index hit an intraday record high of 1576.09.\nIt did not regain this closing level until April 10, 2013.\n- August 26, 2014: The S&P 500 index reaches 2,000 points, closing at 2,000.02.\n- July 12, 2019: The S&P 500 index reaches 3,000 points, closing at 3,013.77.\n- February 19, 2020: The S&P 500 index reached its highest point in the bull market that started from the low point on March 9, 2009, closing at 3386.15.\n- August 18, 2020: The S&P 500 index closed at a record high of 3389.78 amid the ongoing COVID-19 pandemic in the United States.\n- April 1, 2021: The S&P 500 index reaches 4,000 points, closing at 4,019.87.\n- February 9, 2024: The S&P 500 index reaches 5,000 points, closing at 5,026.61.\n- November 11, 2024: The S&P 500 index reaches 6,000 points, closing at 6,001.35.\n- April 15, 2026: The S&P 500 index reaches 7,000 points, closing at 7,022.95.\n...\n- March 9, 2009: S&P 500 closed at 676.53 (it hit a 666.79 intraday low on March 6), its closing low after the onset of the 2008 financial crisis and the bankruptcy of Lehman Brothers.\n...\n- June 8, 2023: The S&P 500 advanced 26.41 points, or 0.6%, to end at 4,293.93 Thursday, its highest closing level since Aug. 16, 2022, according to Dow Jones Market Data.\n...\n|Category|All-time highs|All-time highs|All-time lows|All-time lows|\n...\n|Closing|7,519.12|Tuesday, May 26, 2026|16.66|Tuesday, January 3, 1950|\n...\nThe total return index takes dividends into account.\n...\n|Closing|16,748.21|Thursday, May 14, 2026|\n|Intraday|16,782.55|Thursday, May 14, 2026|",
+"title": "Closing milestones of the S&P 500 - Wikipedia",
+"url": "https://en.wikipedia.org/wiki/Closing_milestones_of_the_S&P_500",
+"date": "2013-05-14",
+"last_updated": "2026-05-26"
+},
+{
+"snippet": "|6,388.64|6,370.01|6,395.82|6,368.53|+0.40%|\n|--|--|--|--|--|\n|6,363.35|6,368.60|6,381.31|6,360.57|+0.07%|\n|6,358.91|6,326.90|6,360.64|6,317.49|+0.78%|\n|6,309.62|6,306.60|6,316.12|6,281.71|+0.06%|\n|6,305.60|6,304.74|6,336.08|6,303.79|+0.14%|\n|6,296.79|6,312.95|6,315.61|6,285.27|-0.01%|\n|6,297.36|6,263.40|6,304.69|6,262.27|+0.54%|\n|6,263.70|6,254.50|6,268.12|6,201.59|+0.32%|\n|6,243.76|6,295.29|6,302.04|6,241.68|-0.40%|\n|6,268.56|6,255.15|6,273.31|6,239.22|+0.14%|\n|6,259.75|6,255.68|6,269.44|6,237.60|-0.33%|\n|6,280.46|6,266.80|6,290.22|6,251.44|+0.27%|\n|6,263.26|6,243.33|6,269.16|6,231.43|+0.61%|\n|6,225.52|6,234.03|6,242.70|6,217.75|-0.07%|\n|6,229.98|6,259.04|6,262.07|6,201.00|-0.79%|\n|6,279.35|6,246.46|6,284.65|6,246.46|+0.83%|\n|6,227.42|6,193.88|6,227.60|6,188.29|+0.47%|\n|6,198.01|6,187.25|6,210.78|6,177.97|-0.11%|\n|6,204.95|6,193.36|6,215.08|6,174.97|+0.52%|",
+"title": "S&P 500 Historical Rates - Investing.com Canada",
+"url": "https://ca.investing.com/indices/us-spx-500-historical-data",
+"date": "2025-07-25",
+"last_updated": "2025-07-28"
+},
+{
+"snippet": "# S&P 500 (DISCONTINUED) (I:SP500NY)\n6845.50 USD for 2025\n...\nS&P 500 is at a current level of 6845.50, up from 5881.63 one year ago.\nThis is a change of 16.39% from one year ago.\n...\n|Notes|Annual closing price of the S&P 500.|\n### Historical Data\n|Date|Value|\n|--|--|\n|December 31, 2025|6845.50|\n|December 31, 2024|5881.63|\n|December 31, 2023|4769.83|\n|December 31, 2022|3839.50|\n|December 31, 2021|4766.18|\n|December 31, 2020|3756.07|\n|December 31, 2019|3230.78|\n|December 31, 2018|2506.85|\n|December 31, 2017|2673.61|\n|December 31, 2016|2238.83|\n|December 31, 2015|2043.94|\n|December 31, 2014|2058.90|\n|December 31, 2013|1848.36|\n|December 31, 2012|1426.19|\n|Date|Value|\n|--|--|\n|December 31, 2011|1257.60|\n|December 31, 2010|1257.64|\n|December 31, 2009|1115.10|\n|December 31, 2008|903.25|\n|December 31, 2007|1468.36|\n|December 31, 2006|1418.30|\n|December 31, 2005|1248.29|\n|December 31, 2004|1211.92|\n|December 31, 2003|1111.92|\n|December 31, 2002|879.82|\n|December 31, 2001|1148.08|\n|December 31, 2000|1320.28|\n|December 31, 1999|1469.25|\n|December 31, 1998|1229.23|",
+"title": "S&P 500 (DISCONTINUED) (Yearly) - United States - YCharts",
+"url": "https://ycharts.com/indicators/sp_500_annual",
+"date": "2026-01-05",
+"last_updated": "2026-05-26"
+}
+],
+"server_time": null
+}
+
+​
+Next Steps
+
+Best Practices
+Optimize your queries and implement async patterns
+
+Pricing
+Review per-request pricing; Search has no additional token charges
+
+​
+Explore More
+
+API Reference
+Complete API documentation for the Perplexity Search API
+
+Perplexity SDK
+Type-safe SDK for Python and Typescript
+
+Date & Time Filters
+Filter search results by recency and date ranges
+
+Domain Filtering Guide
+Advanced domain allowlist and denylist patterns
+
+Agent API
+Third-party models from OpenAI, Anthropic, Google, and more with presets and web search tools.
+
+Search Evals
+Benchmark Perplexity Search against other web search APIs across multiple evaluation suites, and explore our latest results.
+
+Was this page helpful?
+
+YesNo
+
+Prompt Guide
+Previous
+
+Fast Search
+Next
+
+⌘I
+xdiscordwebsite
+
+Assistant
+
+Responses are generated using AI and may contain mistakes.
+
+SuggestionsWhat is the Agent API?Which Agent API model should I use?How do I create an API key?
+

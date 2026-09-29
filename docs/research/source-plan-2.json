@@ -1,0 +1,15 @@
+[
+  {"id":"S29-safe-detail","url":"https://raw.githubusercontent.com/google-deepmind/long-form-factuality/main/eval/safe/README.md"},
+  {"id":"S30-wikichat-pixi","url":"https://raw.githubusercontent.com/stanford-oval/WikiChat/main/pixi.toml"},
+  {"id":"S31-gptresearcher-license","url":"https://raw.githubusercontent.com/assafelovic/gpt-researcher/master/LICENSE"},
+  {"id":"S32-gaode-walking","url":"https://lbs.amap.com/api/webservice/guide/api/direction"},
+  {"id":"S33-shanghai-notices","url":"https://www.shanghai.gov.cn/nw4411/index.html"},
+  {"id":"S34-shbg","url":"https://www.shbg.org/"},
+  {"id":"S35-ctrip-review-page","url":"https://you.ctrip.com/sight/shanghai2/571.html"},
+  {"id":"S36-crawl4ai","url":"https://raw.githubusercontent.com/unclecode/crawl4ai/main/README.md"},
+  {"id":"S37-trafilatura","url":"https://raw.githubusercontent.com/adbar/trafilatura/master/README.rst"},
+  {"id":"S38-bing-discovery","url":"https://www.bing.com/search?q=travel+fact+checking+AI+claim+verification+TripGenie"},
+  {"id":"S39-bing-notice","url":"https://www.bing.com/search?q=site.shanghai.gov.cn+%E6%99%AF%E5%8C%BA+%E4%B8%B4%E6%97%B6%E9%97%AD%E5%9B%AD+%E5%85%AC%E5%91%8A"},
+  {"id":"S40-langgraph-persistence","url":"https://docs.langchain.com/oss/python/langgraph/persistence"},
+  {"id":"S41-baidu-search","url":"https://cloud.baidu.com/doc/qianfan-api/s/Fm9m52rly"}
+]

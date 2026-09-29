@@ -1,0 +1,1160 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /><title>
+	上海植物园
+</title><link href="/sites/zhiwuyuan/css/css.css" rel="stylesheet" type="text/css" /><link href="/sites/zhiwuyuan/css/lanrenzhijia.css" rel="stylesheet" type="text/css" />
+    <script type="text/javascript" src="/sites/zhiwuyuan/Scripts/jquery.js"></script>
+    <script type="text/javascript" src="/sites/zhiwuyuan/Scripts/lanrenzhijia.js"></script>
+    <script type="text/javascript" src="/sites/zhiwuyuan/Scripts/CS_Web_Script.js"></script>
+    <script type="text/javascript" src="/sites/zhiwuyuan/Scripts/CS_Web_Script1.js"></script>
+    
+    <script>
+        var _hmt = _hmt || [];
+        (function () {
+            var hm = document.createElement("script");
+            hm.src = "https://hm.baidu.com/hm.js?d74815308af5df8b3dd16f629087feb3";
+            var s = document.getElementsByTagName("script")[0];
+            s.parentNode.insertBefore(hm, s);
+        })();
+    </script>
+    <link rel="stylesheet" href="layui.css" media="all">
+    <script type="text/javascript" src="https://lhsr.sh.gov.cn/sites/baw.js"></script>
+
+    <script type="text/javascript">
+        function DoSearch() {
+            if (document.getElementById("kw").value == "") {
+                alert("关键字不能为空");
+                return;
+            }
+            location.href = "/sites/zhiwuyuan/InfoList.aspx?ctgId=dd992c8e-060f-4eed-8985-2585bfbcde9a&kw=" + encodeURI(document.getElementById("kw").value);
+        }
+    </script>
+</head>
+
+<body style="background-image: url(/sites/zhiwuyuan/images/bigbj.jpg);"
+onload="qiehuan()">
+<form name="aspnetForm" method="post" action="zhiwuyuan_default_1.aspx" id="aspnetForm">
+<div>
+<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="ElLYyYy49wS0Nlz2tI4d9hRpMUc8wX+gwKOteUqxyyTarUNVhiZ5QoR1oeN4dd9goqgMKRSbAFCIXNVCSbO/fcBSUEOGi9NbnQw4MFc9IrSDwhTO" />
+</div>
+
+<div>
+
+	<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="44AE0FDD" />
+	<input type="hidden" name="__VIEWSTATEENCRYPTED" id="__VIEWSTATEENCRYPTED" value="" />
+</div>
+    
+    
+    <div id="float_frame" style='z-index: 999; position: absolute;'>
+        <a id="float_href" target="_blank" style="z-index: 999;">
+            <img id="float_img" alt="" src="" border="0" style="z-index: 999; width: 150px; height: 100px;" />
+        </a>
+        <div onclick="hidead();" style="font-size: 9pt; cursor: hand" align="right">
+            ×</div>
+    </div>
+    
+    <script type="text/javascript">
+        {
+            var floatImgs = new Array();
+            var rootUrl = 'http://localhost:8100';
+
+            var curFloatImgIndex = 0;
+
+            var imgInterval = 0;
+
+            function SetCurFloatImg() {
+                if (floatImgs.length > 0) {
+                    document.getElementById('float_href').href = floatImgs[curFloatImgIndex].LinkUrl;
+                    if (floatImgs[curFloatImgIndex].LinkUrl == "javascript:;") {
+                        document.getElementById('float_href').target = "_self";
+                    } else {
+                        document.getElementById('float_href').target = "_blank";
+                    }
+                    document.getElementById('float_img').src = floatImgs[curFloatImgIndex].ImgUrl;
+                }
+
+                if (curFloatImgIndex == floatImgs.length - 1) {
+                    curFloatImgIndex = 0;
+                }
+                else {
+                    curFloatImgIndex++;
+                }
+
+                if (imgInterval > 0) {
+                    setTimeout(SetCurFloatImg, imgInterval * 1000);
+                }
+            }
+
+            function RunFloatFrame() {
+                var isOpen = '0';
+                var width = '130';
+                var height = '100';
+                //为0则不切换图片，单位（秒）
+                imgInterval = 3;
+
+                if (isOpen == '1') {
+                    if (width != null && width != '') {
+                        document.getElementById('float_img').width = width;
+                    }
+                    if (height != null && height != '') {
+                        document.getElementById('float_img').height = height;
+                    }
+                    new CS_Web_Script_FloatImage('float_frame', 20).Run();
+                }
+                else
+                    document.getElementById('float_frame').style.display = "none";
+            }
+
+            //启动
+            RunFloatFrame();
+            SetCurFloatImg();
+        }
+        function hidead()
+        { document.getElementById("float_frame").style.display = "none"; }
+    </script>
+    
+    
+    <div class="box">
+        
+        <div class="center">
+            <div class="center_top">
+            </div>
+            <div class="center_c">
+                <div class="center_kuai1">
+                    <div style="float: left; width: 660px; height: 95px;">
+                        <object classid="clsid:D27CDB6E-AE6D-11cf-96B8-444553540000" codebase="http://download.macromedia.com/pub/shockwave/cabs/flash/swflash.cab#version=6,0,40,0"
+                                width="660" height="95" id="myMovieName">
+                            <param name="movie" value="/sites/zhiwuyuan/images/top1.swf" />
+                            <param name="quality" value="high" />
+                            <param name="wmode" value="transparent" />
+                            <param name="allowfullscreen" value="true" />
+                            <embed width="660" height="95" align="absMiddle" pluginspage="http://www.macromedia.com/go/getflashplayer"
+                                   type="application/x-shockwave-flash" allowfullscreen="true" wmode="transparent"
+                                   quality="high" src="/sites/zhiwuyuan/images/top1.swf" />
+                        </object>
+                    </div>
+                    <div style="float: left; width: 140px; height: 30px; position: absolute; right: 15px;
+                        z-index: 999; top: 0px;">
+
+                    </div>
+                    
+                    <div class="center_kuai1_sou">
+                        <input type="text" style="height: 20px; float: left; width: 160px;" id="kw" />
+                        <a>
+                            <img src="/sites/zhiwuyuan/images/sou.jpg" onmouseover='this.src="/sites/zhiwuyuan/images/sou2.jpg"'
+                                 onmouseout='this.src="/sites/zhiwuyuan/images/sou.jpg"' style="float: left;
+                                margin-left: 10px;" onclick="DoSearch();" /></a>
+                    </div>
+                </div>
+                <div class="daohang">
+                    <div id="menu">
+                        <ul class="menu">
+                            <li><strong><a href="/?site=zhiwuyuan" class="lva">首 页</a></strong>
+                            </li>
+                            <li><strong class="parent"><a href="/sites/zhiwuyuan/InfoCtgList.aspx?ctgId=d95a0216-5d88-42ca-9346-c638b213465b"
+                                class="lva">新闻动态</a></strong>
+                                <div>
+                                    <ul>
+                                        
+                                        <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=737e03a1-a4d0-4e86-8f8c-e1fbffb005ae" target="_parent"
+                                               class="lva"><span class="parent">
+                                                展览活动</span> </a>
+                                            
+                                        </li>
+                                        
+                                        <li><a href="/sites/zhiwuyuan/ImgList.aspx?ctgId=6522203e-d493-47b0-be9f-0574b7df3558" target="_blank"
+                                               class="lva"><span class="parent">
+                                                当前花事</span> </a>
+                                            
+                                        </li>
+                                        
+                                        <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=22ea9dc1-52f2-47fa-9c81-bf65eb9d313a" target="_blank"
+                                               class="lva"><span class="parent">
+                                                科普报道</span> </a>
+                                            
+                                        </li>
+                                        
+                                        <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=2aa13abc-c695-4556-b0b7-044dbfefdafc" target="_blank"
+                                               class="lva"><span class="parent">
+                                                科研动态</span> </a>
+                                            
+                                        </li>
+                                        
+                                        <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=3c25f682-3f21-4cb3-994b-ab79489bacae" target="_blank"
+                                               class="lva"><span class="parent">
+                                                园内动态</span> </a>
+                                            
+                                        </li>
+                                        
+                                        <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=0426a037-9920-4f18-af06-ff85230b5027" target="_parent"
+                                               class="lva"><span class="parent">
+                                                媒体聚焦</span> </a>
+                                            
+                                        </li>
+                                        
+                                        <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=404bd85e-d109-467e-bbd2-e1bf1e9821fb" target="_parent"
+                                               class="lva"><span class="parent">
+                                                最新通告</span> </a>
+                                            
+                                        </li>
+                                        
+                                        <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=8083ff7f-1cfa-42e2-a3d5-b850c095c357" target="_parent"
+                                               class="lva"><span class="parent">
+                                                一旬一兰</span> </a>
+                                            
+                                        </li>
+                                        
+                                    </ul>
+                                </div>
+                            </li>
+                            <li><strong class="parent"><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=d74cc606-15a7-4f00-8889-816fb380a440"
+                                class="lva">走进植物园</a></strong>
+                                <div>
+                                    <ul>
+
+                                        <li><a href="http://www.shbg.org/sites/zhiwuyuan/InfoList.aspx?ctgId=d74cc606-15a7-4f00-8889-816fb380a440" target="_parent"
+                                               class="lva"><span class="parent">
+                                                植物园概况</span> </a>
+
+                                        </li>
+
+                                        <li><a href="http://www.shbg.org/sites/zhiwuyuan/InfoList.aspx?ctgId=3c25f682-3f21-4cb3-994b-ab79489bacae" target="_parent"
+                                               class="lva"><span class="parent">
+                                                园内动态</span> </a>
+
+                                        </li>
+
+                                        <li><a href="http://www.shbg.org/sites/zhiwuyuan/InfoList.aspx?ctgId=473eee60-0786-4fe4-bf7c-bea2a5cbafac" target="_parent"
+                                               class="lva"><span class="parent">
+                                                历史沿革</span> </a>
+
+                                        </li>
+
+                                        <li><a href="http://www.shbg.org/sites/zhiwuyuan/InfoList.aspx?ctgId=d20b0695-1a59-44af-a150-281c0b6af1a7" target="_parent"
+                                               class="lva"><span class="parent">
+                                                规划建设</span> </a>
+
+                                        </li>
+
+                                        <li><a href="http://www.shbg.org/sites/zhiwuyuan/Rongyuchengjiu.aspx?ctgId=05fb76df-a6e2-4181-b6de-689be983bd8d" target="_parent"
+                                               class="lva"><span class="parent">
+                                                荣誉称号</span> </a>
+
+                                        </li>
+
+                                        <li><a href="http://www.shbg.orgjavascript:;" target="_parent"
+                                               class="lva"><span class="parent">
+                                                组织人事</span> </a>
+
+                                            <div>
+                                                <ul>
+
+                                                    <li><a href="http://www.shbg.org/sites/zhiwuyuan/Zuzhijigou.aspx?ctgId=a835c0f9-3341-41ae-9edf-ec5a9f9604bd" target="_blank"
+                                                           class="lva"><span>
+                                                            组织机构</span></a></li>
+
+                                                    <li><a href="http://www.shbg.org/sites/zhiwuyuan/InfoList.aspx?ctgId=8534efa7-5b50-4bc6-8f13-b9a379215758" target="_parent"
+                                                           class="lva"><span>
+                                                            人才招聘</span></a></li>
+
+                                                </ul>
+                                            </div>
+
+                                        </li>
+
+                                        <li><a href="http://www.shbg.orgjavascript:;" target="_parent"
+                                               class="lva"><span class="parent">
+                                                党群园地</span> </a>
+
+                                            <div>
+                                                <ul>
+
+                                                    <li><a href="http://www.shbg.org/sites/zhiwuyuan/InfoList.aspx?ctgId=dbc10a72-eff9-4d43-9139-9706567cb421" target="_parent"
+                                                           class="lva"><span>
+                                                            文化建设</span></a></li>
+
+                                                    <li><a href="http://www.shbg.org/sites/zhiwuyuan/InfoList.aspx?ctgId=39e00966-758e-47f2-b039-347174e0dae0" target="_parent"
+                                                           class="lva"><span style="line-height: 20px;">
+                                                            “不忘初心、牢记使命”主题教育</span></a></li>
+                                                    <li><a href="http://www.shbg.org/sites/zhiwuyuan/InfoList.aspx?ctgId=24a7d09f-8e32-437e-8190-6557182e84ed" target="_parent"
+                                                           class="lva"><span>
+                                                            “四史”学习教育</span></a></li>
+                                                    <li><a href="http://www.shbg.org/sites/zhiwuyuan/InfoList.aspx?ctgId=a3c58099-3059-4634-b1eb-4e0ae9ead5c9" target="_parent"
+                                                           class="lva"><span>
+                                                            学习贯彻习近平新时代中国特色社会主义思想主题教育</span></a></li>
+                                                </ul>
+                                            </div>
+
+                                        </li>
+
+                                        <li><a href="http://www.shbg.org/sites/zhiwuyuan/Chubanwu.aspx?ctgId=011bf5c7-1a1c-43dd-8cc3-147197efddd6" target="_parent"
+                                               class="lva"><span class="parent">
+                                                植物园出版物</span> </a>
+
+                                            <div>
+                                                <ul>
+
+                                                    <li><a href="http://www.shbg.org/sites/zhiwuyuan/InfoList.aspx?ctgId=f69df1f3-3bfb-498a-905e-08c2ce385e72" target="_parent"
+                                                           class="lva"><span>
+                                                            园艺之家</span></a></li>
+
+                                                    <li><a href="http://www.shbg.org/sites/zhiwuyuan/InfoList.aspx?ctgId=1ab265d1-34d0-4172-bc30-0368420ce1b1" target="_parent"
+                                                           class="lva"><span>
+                                                            植物园年报</span></a></li>
+
+                                                    <li><a href="http://www.shbg.org/sites/zhiwuyuan/InfoList.aspx?ctgId=67a3955b-502f-44b9-b3a4-d8cc51bd3c55" target="_parent"
+                                                           class="lva"><span>
+                                                            上海花展画册</span></a></li>
+
+                                                    <li><a href="http://www.shbg.org/sites/zhiwuyuan/InfoList.aspx?ctgId=fc8021c1-2ffc-4e53-af0e-1822609a8dec" target="_parent"
+                                                           class="lva"><span>
+                                                            其他出版物</span></a></li>
+
+                                                </ul>
+                                            </div>
+
+                                        </li>
+
+                                    </ul>                                </div>
+                            </li>
+                            <li><strong class="parent"><a href="/sites/zhiwuyuan/Sijidaolan.aspx?ctgId=6d78ee56-dadc-4b81-b231-12abfad74804"
+                                class="lva">参观导览</a></strong>
+                                <div>
+                                    <ul>
+                                        <li><a href="https://m.baidu.com/sf?atn=index&from_sf=1&frorder=2&frsrcid=&ms=1&openapi=1&pd=xr&resource_id=5099&sa=&sceneid=7661cabe-5791-4600-85a9-8585489ce0e1&title=%E4%B8%8A%E6%B5%B7%E6%A4%8D%E7%89%A9%E5%9B%AD%E5%85%A8%E6%99%AF%E5%9B%BE&tn=nohead&top=%7B%22sfhs%22%3A1%7D&tp=strong&word=%E4%B8%8A%E6%B5%B7%E6%A4%8D%E7%89%A9%E5%9B%AD%E5%85%A8%E6%99%AF%E5%9B%BE&xrkey=7842833962766811616" target="_blank"
+                                               class="lva"><span class="parent">
+                                                AI上植</span> </a>
+                                        </li>
+                                        
+                                        <li><a href="/sites/zhiwuyuan/Sijidaolan.aspx?ctgId=6d78ee56-dadc-4b81-b231-12abfad74804" target="_parent"
+                                               class="lva"><span class="parent">
+                                                四季导览</span> </a>
+                                            
+                                        </li>
+                                        
+                                        <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=cd3eef4b-8a0a-462f-a49e-5d5ab7cb7026" target="_blank"
+                                               class="lva"><span class="parent">
+                                                全年展览活动</span> </a>
+                                            
+                                        </li>
+                                        
+                                        <li><a href="/sites/zhiwuyuan/Quannianhuashi.aspx?ctgId=173860cd-c9e5-4520-a7af-407823527fe0" target="_parent"
+                                               class="lva"><span class="parent">
+                                                全年花事</span> </a>
+                                            
+                                        </li>
+                                        
+                                        <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=70cd8e24-7067-475a-9898-f6964c3d98d1" target="_parent"
+                                               class="lva"><span class="parent">
+                                                门票及开放时间</span> </a>
+                                            
+                                        </li>
+                                        
+                                        <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=aa7b056a-e318-46ad-9f2c-29f45b3a2567" target="_parent"
+                                               class="lva"><span class="parent">
+                                                来园交通</span> </a>
+                                            
+                                        </li>
+                                        
+                                        <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=a00e3888-d1a7-4e69-9824-91058eb7b527" target="_parent"
+                                               class="lva"><span class="parent">
+                                                导览地图</span> </a>
+                                            
+                                        </li>
+                                        
+                                        <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=2645a2aa-f97c-4e83-ae58-411aad0b1983" target="_parent"
+                                               class="lva"><span class="parent">
+                                                游园守则</span> </a>
+                                            
+                                        </li>
+                                        
+                                        <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=501d114c-c981-4399-90a1-f2378710ed7e" target="_parent"
+                                               class="lva"><span class="parent">
+                                                游园服务</span> </a>
+                                            
+                                        </li>
+                                        
+                                        <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=f99fbe79-ecc7-4428-88ba-87a1652c6831" target="_parent"
+                                               class="lva"><span class="parent">
+                                                常见问题</span> </a>
+                                            
+                                        </li>
+                                        
+                                    </ul>
+                                </div>
+                            </li>
+                            <li><strong class="parent"><a href="/sites/zhiwuyuan/Yuanqutiyan.aspx?ctgId=bc7b8d52-01d1-4ba3-a1c6-fa2217c5653d"
+                                class="lva">园艺体验</a></strong>
+                                <div>
+                                    <ul>
+                                        
+                                        <li><a href="javascript:;" target="_parent"
+                                               class="lva"><span class="parent">
+                                                园区花事</span> </a>
+                                            
+                                            <div>
+                                                <ul>
+                                                    
+                                                    <li><a href="/sites/zhiwuyuan/ImgList.aspx?ctgId=6522203e-d493-47b0-be9f-0574b7df3558" target="_parent"
+                                                           class="lva"><span>
+                                                            当前花事</span></a></li>
+                                                    
+                                                    <li><a href="/sites/zhiwuyuan/Quannianhuashi.aspx?ctgId=173860cd-c9e5-4520-a7af-407823527fe0" target="_blank"
+                                                           class="lva"><span>
+                                                            全年花事</span></a></li>
+                                                    
+                                                </ul>
+                                            </div>
+                                            
+                                        </li>
+                                        
+                                        <li><a href="/sites/zhiwuyuan/Zhutihuazhan.aspx?ctgId=8a250046-de83-4ac7-a811-fadaf7be2c24" target="_parent"
+                                               class="lva"><span class="parent">
+                                                主题花展</span> </a>
+                                            
+                                        </li>
+                                        
+                                        <li><a href="/sites/zhiwuyuan/Zhuanlei_List.aspx?ctgId=78c10443-9d2b-4154-b84c-d3c58c3039a3" target="_blank"
+                                               class="lva"><span class="parent">
+                                                专类园区</span> </a>
+                                            
+                                        </li>
+                                        
+                                        <li><a href="/sites/zhiwuyuan/Zhiwumulu.aspx?ctgId=56c7b0fa-ce2a-490b-9b24-1fd62573adf3" target="_blank"
+                                               class="lva"><span class="parent">
+                                                植物目录</span> </a>
+                                            
+                                            <div>
+                                                <ul>
+                                                    
+                                                    <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=b712b025-83fe-471f-a520-1e0dd5c3c941" target="_parent"
+                                                           class="lva"><span>
+                                                            被子植物门</span></a></li>
+                                                    
+                                                    <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=6782778a-ff04-44bc-9512-4490a9f339ab" target="_parent"
+                                                           class="lva"><span>
+                                                            蕨类植物门</span></a></li>
+                                                    
+                                                    <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=22678b57-d7a1-4aa0-b5ec-9b14f9e5ec6e" target="_parent"
+                                                           class="lva"><span>
+                                                            裸子植物门</span></a></li>
+                                                    
+                                                </ul>
+                                            </div>
+                                            
+                                        </li>
+                                        
+                                        <li><a href="javascript:;" target="_parent"
+                                               class="lva"><span class="parent">
+                                                养护管理</span> </a>
+                                            
+                                            <div>
+                                                <ul>
+                                                    
+                                                    <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=f34e9ef2-efd9-4690-a1eb-6afa0cd94058" target="_parent"
+                                                           class="lva"><span>
+                                                            养护工作</span></a></li>
+                                                    
+                                                    <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=0af56e16-38aa-4872-91b8-3a3c6efe888d" target="_parent"
+                                                           class="lva"><span>
+                                                            植保管理</span></a></li>
+                                                    
+                                                </ul>
+                                            </div>
+                                            
+                                        </li>
+                                        
+                                    </ul>
+                                </div>
+                            </li>
+                            <li><strong class="parent"><a href="/sites/zhiwuyuan/Kepujiaoyu.aspx?ctgId=82b3c3bb-06d3-4f03-bafc-2cc891596a75"
+                                class="lva">科普教育</a></strong><div>
+                                <ul>
+                                    
+                                    <li><a href="/sites/zhiwuyuan/Zhutihuazhan.aspx?ctgId=f42e49ff-62d4-4690-9212-d9260531516e" target="_parent"
+                                           class="lva"><span class="parent">
+                                                科普活动</span> </a>
+                                        
+                                    </li>
+                                    
+                                    <li><a href="/sites/zhiwuyuan/Zhutihuazhan.aspx?ctgId=e96e8982-0088-43ad-ba09-62640a1e0c3e" target="_parent"
+                                           class="lva"><span class="parent">
+                                                科普品牌</span> </a>
+                                        
+                                        <div>
+                                            <ul>
+                                                
+                                                <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=93a31888-e6d9-42be-b663-eca41fa47f68" target="_parent"
+                                                       class="lva"><span>
+                                                             家庭园艺DIY项目</span></a></li>
+                                                
+                                                <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=6c034ca8-f667-4bc9-9ebe-3dc73bd39b7a" target="_parent"
+                                                       class="lva"><span>
+                                                            暗访夜精灵</span></a></li>
+                                                
+                                                <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=66ae4bf2-a024-456b-844b-97a28f41f4f8" target="_parent"
+                                                       class="lva"><span>
+                                                            播种春天</span></a></li>
+                                                
+                                                <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=b29ae6e0-715b-4f52-9752-426dd256c8c6" target="_parent"
+                                                       class="lva"><span>
+                                                            二期课改进科普教育基地</span></a></li>
+                                                
+                                                <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=6682019b-8c5f-46eb-ae95-412c558b0cf9" target="_parent"
+                                                       class="lva"><span>
+                                                            快乐之旅</span></a></li>
+                                                
+                                                <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=f15fa7bc-05a0-4ac4-baff-a3b0919e66d8" target="_parent"
+                                                       class="lva"><span>
+                                                            自然导赏员</span></a></li>
+                                                
+                                            </ul>
+                                        </div>
+                                        
+                                    </li>
+                                    
+                                    <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=f32852b4-7ebc-417a-ba0c-288bf7070ece" target="_parent"
+                                           class="lva"><span class="parent">
+                                                科普套餐</span> </a>
+                                        
+                                    </li>
+                                    
+                                    <li><a href="/sites/zhiwuyuan/ImgList.aspx?ctgId=3cfb1796-2e1a-430a-ab1f-73994ed54569" target="_parent"
+                                           class="lva"><span class="parent">
+                                                科普成果</span> </a>
+                                        
+                                        <div>
+                                            <ul>
+                                                
+                                                <li><a href="/sites/zhiwuyuan/ImgList.aspx?ctgId=c2d3e318-d4ef-436d-8b15-4920fd53215a" target="_parent"
+                                                       class="lva"><span>
+                                                            科普获奖</span></a></li>
+                                                
+                                                <li><a href="/sites/zhiwuyuan/ImgList.aspx?ctgId=da7c1480-0272-4db0-8069-c29a07c9f1ca" target="_parent"
+                                                       class="lva"><span>
+                                                            论文出版物</span></a></li>
+                                                
+                                            </ul>
+                                        </div>
+                                        
+                                    </li>
+                                    
+                                    <li><a href="javascript:;" target="_parent"
+                                           class="lva"><span class="parent">
+                                                科普乐园</span> </a>
+                                        
+                                        <div>
+                                            <ul>
+                                                
+                                                <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=27c06938-b2ea-4aef-bd9b-39a1be4cadfc" target="_parent"
+                                                       class="lva"><span>
+                                                            求知馆</span></a></li>
+                                                
+                                                <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=fac25bee-1dd5-494d-af07-3d407bf57b10" target="_parent"
+                                                       class="lva"><span>
+                                                            生态馆</span></a></li>
+                                                
+                                                <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=98e1ea31-34bb-4510-a566-a037951594d3" target="_parent"
+                                                       class="lva"><span>
+                                                            园艺馆</span></a></li>
+                                                
+                                            </ul>
+                                        </div>
+                                        
+                                    </li>
+                                    
+                                    <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=22ea9dc1-52f2-47fa-9c81-bf65eb9d313a" target="_parent"
+                                           class="lva"><span class="parent">
+                                                科普报道</span> </a>
+                                        
+                                    </li>
+                                    
+                                </ul>
+                            </div>
+                            </li>
+                            <li><strong class="parent"><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=82f0b392-060b-4be2-b8df-4edeae922476"
+                                class="lva">科学研究</a></strong>
+                                <div>
+                                    <ul>
+                                        
+                                        <li id="p_82f0b392-060b-4be2-b8df-4edeae922476"><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=82f0b392-060b-4be2-b8df-4edeae922476" target="_parent"
+                                                                        class="lva"><span class="parent">
+                                                科研简介</span> </a>
+                                            
+                                        </li>
+                                        
+                                        <li id="p_461115d2-2d63-48a8-84b3-c9ef4572a19b"><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=2aa13abc-c695-4556-b0b7-044dbfefdafc" target="_parent"
+                                                                        class="lva"><span class="parent">
+                                                科研动态</span> </a>
+                                            
+                                        </li>
+                                        
+                                        <li id="p_351075de-050f-44c1-bf2e-2b9df6c4c531"><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=351075de-050f-44c1-bf2e-2b9df6c4c531" target="_parent"
+                                                                        class="lva"><span class="parent">
+                                                科研平台</span> </a>
+                                            
+                                        </li>
+                                        
+                                        <li id="p_4b08d430-5e51-4d34-b069-3e4d5f715ba4"><a href="/sites/zhiwuyuan/InfoContent.aspx?ctgId=0a72b4a1-525d-4a38-bd35-ee91120f5e98&infoId=aa3e527f-8fc7-401b-b2a4-c0343b21ddfb" target="_parent"
+                                                                        class="lva"><span class="parent">
+                                                科研团队</span> </a>
+                                            
+                                        </li>
+                                        
+                                        <li id="p_6081fb2d-ed97-4be5-9faf-7a2a3cefd499"><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=6081fb2d-ed97-4be5-9faf-7a2a3cefd499" target="_parent"
+                                                                        class="lva"><span class="parent">
+                                                科研项目</span> </a>
+                                            
+                                        </li>
+                                        
+                                        <li id="p_96469a98-1dc8-4c06-9280-5e44c710ecb5"><a href="/sites/zhiwuyuan/keyanchengguo.aspx?ctgId=96469a98-1dc8-4c06-9280-5e44c710ecb5" target="_parent"
+                                                                        class="lva"><span class="parent">
+                                                科研成果</span> </a>
+                                            
+                                            <div>
+                                                <ul>
+                                                    
+                                                    <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=0d72411a-6217-4b8a-829d-44596b30f98f" target="_parent"
+                                                           class="lva"><span>
+                                                            科研论文</span></a></li>
+                                                    
+                                                    <li><a href="/sites/zhiwuyuan/Zhuzuo.aspx?ctgId=7e53b460-8a82-4cdb-93e0-7cfc3a922933" target="_parent"
+                                                           class="lva"><span>
+                                                            科研专著</span></a></li>
+                                                    
+                                                    <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=b7b8ecde-21d3-47be-94a8-60de175b903c" target="_parent"
+                                                           class="lva"><span>
+                                                            科研专利</span></a></li>
+                                                    
+                                                    <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=78cff821-1983-48dd-9a0b-c3dbb44760e1" target="_parent"
+                                                           class="lva"><span>
+                                                            科研获奖</span></a></li>
+                                                    
+                                                    <li><a href="/sites/zhiwuyuan/ImgList.aspx?ctgId=a184d27d-3b1f-44f5-b128-7026e3369c96" target="_parent"
+                                                           class="lva"><span>
+                                                            科研新品种</span></a></li>
+                                                    
+                                                </ul>
+                                            </div>
+                                            
+                                        </li>
+                                        
+                                    </ul>
+                                </div>
+                            </li>
+                            <li><strong class="parent"><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=fefe1ad2-a062-4687-81c5-edc8e6cbff4b"
+                                class="lva">植物园之友</a></strong>
+                                <div>
+                                    <ul>
+                                        
+                                        <li><a href="javascript:;" target="_parent"
+                                               class="lva"><span class="parent">
+                                                志愿者园地</span> </a>
+                                            
+                                            <div>
+                                                <ul>
+                                                    
+                                                    <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=fefe1ad2-a062-4687-81c5-edc8e6cbff4b" target="_parent"
+                                                           class="lva"><span>
+                                                            志愿者品牌</span></a></li>
+                                                    
+                                                    <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=2c986310-c9ae-47c3-95d6-76fa20df2108" target="_parent"
+                                                           class="lva"><span>
+                                                            志愿者招募</span></a></li>
+                                                    
+                                                    <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=2c986310-c9ae-47c3-95d6-76fa20df2108" target="_parent"
+                                                           class="lva"><span>
+                                                            志愿者招募</span></a></li>
+                                                    
+                                                    <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=6035540d-e3b8-4217-b14d-1d0fe2cdf7b5" target="_parent"
+                                                           class="lva"><span>
+                                                            志愿者服务项目</span></a></li>
+                                                    
+                                                    <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=39498507-3586-41a8-9e9c-fe268c19bcf4" target="_parent"
+                                                           class="lva"><span>
+                                                            历年活动</span></a></li>
+                                                    
+                                                </ul>
+                                            </div>
+                                            
+                                        </li>
+                                        
+                                        <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=285b5292-f72d-464d-b988-a0bfe6e4eac2" target="_parent"
+                                               class="lva"><span class="parent">
+                                                树木认养</span> </a>
+                                            
+                                            <div>
+                                                <ul>
+                                                    
+                                                    <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=285b5292-f72d-464d-b988-a0bfe6e4eac2" target="_parent"
+                                                           class="lva"><span>
+                                                            树木认养办法</span></a></li>
+                                                    
+                                                    <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=d112cdb5-f908-4e0b-a836-6bef6dac6cfd" target="_parent"
+                                                           class="lva"><span>
+                                                            历年活动</span></a></li>
+                                                    
+                                                </ul>
+                                            </div>
+                                            
+                                        </li>
+                                        
+                                    </ul>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                
+
+    <!--<div class="leftpiao" style=" position: fixed;right: -15px;top: 100px;width:115px;height:470px;">
+        <a target="_blank" href="https://www.shbg.org/sites/zhiwuyuan/InfoList.aspx?ctgId=a3c58099-3059-4634-b1eb-4e0ae9ead5c9">
+            <div style=""><img style="width:90px;" src="https://www.shbg.org//Plugins/ueditor_release-ueditor1_4_3_1-utf8-net/net/upload/image/20230506/63818966075624794148303626243a4715.jpg" /></div>
+        </a>
+            
+        <div style="margin-left: 5px;cursor: pointer;" onclick="$('.leftpiao').hide()">关闭</div>
+    </div>-->
+
+    <script src="layui.js"></script>
+    <script>
+        layui.use('carousel', function () {
+            var carousel = layui.carousel;
+            //建造实例
+            carousel.render({
+                elem: '#test1'
+                , width: '100%' //设置容器宽度
+                , height: '200px'
+                , arrow: 'none' //始终显示箭头
+                , indicator: 'none'
+            });
+        });
+    </script>
+  
+    
+    
+  
+    <div class="center_kuai2">
+        
+        
+        <div class="center_kuai2_top">
+            植物园概况
+        </div>
+        <div class="center_kuai2_text" style="text-align: justify;">
+
+            <a href="/sites/zhiwuyuan/InfoContent.aspx?ctgId=d74cc606-15a7-4f00-8889-816fb380a440&infoId=b74a03cd-5d82-4e23-a3ed-d45bc4563fa2"
+                target="_blank">
+                上海植物园位于上海市中心城区南部地区，占地面积81.86公顷，1974年起筹建，1978年正式对外开放，是一个以植物引种驯化、植物学研究、科学传播、园艺展示为主的综合性城市植物园......
+            </a>
+        </div>
+        
+        
+        <div class="center_kuai2_list" style="margin-top:53px">
+            <ul>
+                <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=404bd85e-d109-467e-bbd2-e1bf1e9821fb"
+                    class="baia" target="_blank">最新通告</a></li>
+                <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=2c986310-c9ae-47c3-95d6-76fa20df2108"
+                    class="baia" target="_blank">志愿者招募</a></li>
+                <li><a href="/sites/zhiwuyuan/InfoList.aspx?CtgId=285b5292-f72d-464d-b988-a0bfe6e4eac2"
+                    class="baia" target="_blank">树木认养</a></li>
+                
+                <li><a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=0426a037-9920-4f18-af06-ff85230b5027"
+                    class="baia" target="_blank">媒体聚焦</a></li>
+            </ul>
+        </div>
+    </div>
+    <div class="center_kuai3">
+        <iframe scrolling="no" frameborder="0" sandbox="allow-top-navigation allow-same-origin allow-forms allow-scripts allow-modals allow-popups" marginheight="0" marginwidth="0" style="float: left;
+            width: 764px; height: 356px; margin-left: 3px;" src="/sites/zhiwuyuan/home_js1.aspx">
+        </iframe>
+    </div>
+    <div class="center_kuai4">
+        <div class="center_kuai4_top">
+            <ul>
+                <li>
+                    <div>
+                        要闻推荐
+                    </div>
+                </li>
+                <li><span><a href="/sites/zhiwuyuan/InfoCtgList.aspx?ctgId=d95a0216-5d88-42ca-9346-c638b213465b">
+                    更多>></a></span></li>
+            </ul>
+        </div>
+        <div class="center_kuai4_l">
+            <iframe scrolling="no" frameborder="0" sandbox="allow-top-navigation allow-same-origin allow-forms allow-scripts allow-modals allow-popups" marginheight="0" marginwidth="0" style="float: left;
+                margin-top: 2px; margin-left: 2px; width: 238px; height: 176px;" src="/sites/zhiwuyuan/home_js2.aspx">
+            </iframe>
+        </div>
+        
+        <div class="center_kuai4_r">
+            
+            <div class="center_kuai4_r_title">
+                <a id="p-c4801bb0-e3d6-463e-a0c1-1e21330f509d" href="/sites/zhiwuyuan/InfoContent.aspx?ctgId=0edaa119-62ca-47bb-b971-2a90e001674c&infoId=c4801bb0-e3d6-463e-a0c1-1e21330f509d"
+                    target="_blank" class="lva" title="上海植物园两大品牌亮相2026乐游云购·国风潮游嘉年华">
+                    上海植物园两大品牌亮相2026乐游云购·...</a>
+            </div>
+
+            <script>
+                $("#p-c844922e-e192-4852-8fbb-97061720d435").attr("href", "http://toupiao.www.gov.cn/100dudian/index.htm");
+            </script>
+            <div class="center_kuai4_r_c" style="text-indent: 2em;">
+                <a href="/sites/zhiwuyuan/InfoContent.aspx?ctgId=0edaa119-62ca-47bb-b971-2a90e001674c&infoId=c4801bb0-e3d6-463e-a0c1-1e21330f509d"
+                    target="_blank">
+                    9月25日至28日，2026乐游云购·国风潮游嘉年华在北外滩国际客运中心码头举办。作为第37届上海旅...</a>
+            </div>
+            
+            <div class="center_kuai4_r_list">
+                <ul>
+                    
+                    <li>
+                        <div>
+                            · <a href="/sites/zhiwuyuan/InfoContent.aspx?ctgId=0edaa119-62ca-47bb-b971-2a90e001674c&infoId=78445963-0199-459c-830a-a5428cef2302"
+                                title="上海植物园应邀参与2026世界设计之都大会主场展览，演绎“草木为邻，自然相伴”主题" target="_blank" title="上海植物园应邀参与2026世界设计之都大会主场展览，演绎“草木为邻，自然相伴”主题">
+                                上海植物园应邀参与2026世界设计之都大...</a>
+                        </div>
+                    </li>
+                    <li><span>
+                        2026-09-29</span></li>
+                    
+                    <li>
+                        <div>
+                            · <a href="/sites/zhiwuyuan/InfoContent.aspx?ctgId=0edaa119-62ca-47bb-b971-2a90e001674c&infoId=176698f8-9199-4170-9e0a-44c1794a05e4"
+                                title="上海植物园举办"童趣南瓜彩绘"活动 扮靓秋日园艺生活季" target="_blank" title="上海植物园举办"童趣南瓜彩绘"活动 扮靓秋日园艺生活季">
+                                上海植物园举办"童趣南瓜彩绘"活动 扮靓...</a>
+                        </div>
+                    </li>
+                    <li><span>
+                        2026-09-29</span></li>
+                    
+                    <li>
+                        <div>
+                            · <a href="/sites/zhiwuyuan/InfoContent.aspx?ctgId=0edaa119-62ca-47bb-b971-2a90e001674c&infoId=5ae39a5f-b299-4137-be95-2e0c5c8b7a0f"
+                                title="秋蕴盆境 艺承匠心｜2026上植园艺生活季“盆境秋趣”特色板块活动开启" target="_blank" title="秋蕴盆境 艺承匠心｜2026上植园艺生活季“盆境秋趣”特色板块活动开启">
+                                秋蕴盆境 艺承匠心｜2026上植园艺生活...</a>
+                        </div>
+                    </li>
+                    <li><span>
+                        2026-09-29</span></li>
+                    
+                    <li>
+                        <div>
+                            · <a href="/sites/zhiwuyuan/InfoContent.aspx?ctgId=0edaa119-62ca-47bb-b971-2a90e001674c&infoId=aa3897dd-a0a8-488f-bdd5-2bd9cde9b014"
+                                title="栖自然之巢，享秋日芬芳｜上海植物园巢咖啡开业，打造生态文旅新场景" target="_blank" title="栖自然之巢，享秋日芬芳｜上海植物园巢咖啡开业，打造生态文旅新场景">
+                                栖自然之巢，享秋日芬芳｜上海植物园巢咖啡...</a>
+                        </div>
+                    </li>
+                    <li><span>
+                        2026-09-29</span></li>
+                    
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="center_kuai5">
+        <div class="center_kuai5_top">
+            游园信息
+        </div>
+        <div class="center_kuai5_xinxi" style="height:180px;line-height: 20px;font-size: 12px;">
+            <span><a href="/sites/zhiwuyuan/InfoList.aspx?CtgId=70cd8e24-7067-475a-9898-f6964c3d98d1"
+                target="_blank" class="lva">开闭园时间</a>：</span><br />1号门（龙吴路1111号）：11月～次年4月7:00-17:00，5月～10月7:00-18:00；<br/>3号门（百色路940号）、4号门（罗城路151号）：11月～次年4月6:00-17:00，5月～10月6:00-18:00。</span><br />
+            <span><a href="/sites/zhiwuyuan/InfoList.aspx?CtgId=70cd8e24-7067-475a-9898-f6964c3d98d1"
+                target="_blank" class="lva">门票价格</a>：</span><br />
+            免大门票，售票专类园票价维持原票价不变、优惠不变。
+        </div>
+        
+    </div>
+    <div class="center_kuai6">
+        <div class="center_kuai6_top">
+            <ul>
+                <li>
+                    <div>
+                        当前花事
+                    </div>
+                </li>
+                <li><span><a href="/sites/zhiwuyuan/ImgList.aspx?CtgId=6522203e-d493-47b0-be9f-0574b7df3558">
+                    更多>></a></span></li>
+            </ul>
+        </div>
+        <iframe scrolling="no" frameborder="0" sandbox="allow-top-navigation allow-same-origin allow-forms allow-scripts allow-modals allow-popups" marginheight="0" marginwidth="0" style="float: left;
+            margin-top: 10px; margin-left: 6px; border: 1px dashed #97C423; width: 645px;
+            height: 150px;" src="/sites/zhiwuyuan/home_js3.aspx"></iframe>
+    </div>
+    <div class="centet_kuai7">
+        <ul>
+            <li><a href="/sites/zhiwuyuan/Sijidaolan.aspx?CtgId=6d78ee56-dadc-4b81-b231-12abfad74804"
+                class="baia" target="_blank">四季导览</a></li>
+            <li><a href="/sites/zhiwuyuan/Zhiwumulu.aspx?CtgId=56c7b0fa-ce2a-490b-9b24-1fd62573adf3"
+                class="baia" target="_blank">植物目录</a></li>
+            <li><a href="/sites/zhiwuyuan/InfoList.aspx?CtgId=501d114c-c981-4399-90a1-f2378710ed7e"
+                class="baia" target="_blank">游园服务</a></li>
+            <li><a href="/sites/zhiwuyuan/InfoList.aspx?CtgId=f99fbe79-ecc7-4428-88ba-87a1652c6831"
+                class="baia" target="_blank">常见问题</a></li>
+            <li><a href="/sites/zhiwuyuan/Geiwoxiexin.aspx?CtgId=fa4fdcc4-c48d-4bd4-bcef-bdf307364d60"
+                class="baia" target="_blank">园长信箱</a></li>
+        </ul>
+    </div>
+
+                <div class="bottom">
+                    <div class="bottom1">
+                        <ul>
+                            <li>
+                                <div>
+                                    <a href="/sites/zhiwuyuan/InfoList.aspx?ctgId=5a2a08f6-2c15-46db-8e0b-9ab111dbf766"
+                                       class="lva">联系我们</a></div>
+                                
+                            </li>
+                            <li style="color: #ccc;">|</li>
+                            <li>
+                                <div>
+                                    友情链接：</div>
+                            </li>
+                            <li>
+                                
+                                <select onclick="if(this.value == '') { this.options.remove(0); }" onchange='if(this.value!=""){window.open(this.value);}'
+                                        style="height: 20px; line-height: 20px; width: 160px; color: #418B00; margin-top: 6px;
+                                    margin-right: 8px;">
+                                    <option value="">国内植物园</option>
+
+                                    <option value="http://www.hzbg.cn/">
+                                        杭州植物园</option>
+
+                                    <option value="http://www.syszwy.com.cn/">
+                                        沈阳植物园</option>
+
+                                    <option value="http://www.qinlingbg.com/">
+                                        秦岭国家植物园</option>
+
+                                    <option value="http://www.csnbgsh.cn">
+                                        上海辰山植物园</option>
+
+                                    <option value="http://www.xtbg.cas.cn/">
+                                        中国科学院西双版纳热带植物园</option>
+
+                                    <option value="http://www.shuilian.com.cn/">
+                                        昆山水生植物园</option>
+
+                                    <option value="http://www.cqnsbg.cn/">
+                                        重庆南山植物园</option>
+
+                                    <option value="http://www.szbg.ac.cn/">
+                                        深圳仙湖植物园</option>
+
+                                    <option value="http://www.whiob.ac.cn/">
+                                        中国科学院武汉植物园</option>
+
+                                    <option value="http://garden.ibcas.ac.cn/">
+                                        中国科学院研究所植物园</option>
+
+                                    <option value="http://www.ilantravel.com.tw/fushan/">
+                                        福山植物园</option>
+
+                                    <option value="http://www.tjzwy.com/">
+                                        天津热带植物园</option>
+
+                                    <option value="http://www.xazwy.com/">
+                                        西安植物园</option>
+
+                                    <option value="http://www.scib.ac.cn/">
+                                        中国科学院华南植物园</option>                                </select>
+                            </li>
+                            <li>
+                                
+                                <select onclick="if(this.value == '') { this.options.remove(0); }" onchange='if(this.value!=""){window.open(this.value); }'
+                                        style="height: 20px; line-height: 20px; width: 160px; color: #418B00; margin-top: 6px;
+                                    margin-right: 8px;">
+                                    <option value="">国外植物园</option>
+
+                                    <option value="http://arboretum.ucsc.edu/">
+                                        The UCSC Arboretum</option>
+
+                                    <option value="http://www.dbg.org/">
+                                        Desert Botanical Garden – Papago Park</option>
+
+                                    <option value="http://www.peacegarden.com/">
+                                        国际和平园（International Peace Garden Canada and USA）</option>
+
+                                    <option value="http://www.usna.usda.gov/">
+                                        美国国家树木园（US National Arboretum）</option>
+
+                                    <option value="https://atlantabg.org/">
+                                        亚特兰大植物园（Atlanta Botanical Garden）</option>
+
+                                    <option value="http://www.kew.org/">
+                                        英国皇家植物园-邱园（Royal Botanical Gardens, Kew）</option>
+
+                                    <option value="http://www.chicago-botanic.org/">
+                                        芝加哥植物园（Chicago Botanic Garden）</option>
+
+                                    <option value="http://www.nitobe.org/">
+                                        加拿大UBC植物园</option>
+
+                                    <option value="https://www.phipps.conservatory.org/">
+                                        菲普斯温室植物园（Phipps Conservatory and Botanical Gardens）</option>
+
+                                    <option value="http://www.bbg.org/">
+                                        美国布鲁克林植物园（Brooklyn Botanic Garden）</option>
+
+                                    <option value="http://www.fairchildgarden.org/">
+                                        美国仙童热带植物园（Fairchild Tropical Botanic Garden）</option>
+
+                                    <option value="https://www.bgbm.org/">
+                                        柏林大莱植物园（Botanischer Garten und Botanisches Museum Berlin-Dahlem）</option>
+
+                                    <option value="http://www.memphisbotanicgarden.com/">
+                                        埃及孟菲斯植物园（Memphis Botanic Garden）</option>
+
+                                    <option value="http://garden.neworleanscitypark.com/">
+                                        新奥尔良植物园（New Orleans Botanical Garden）</option>
+
+                                    <option value="http://www.arboretum.harvard.edu/">
+                                        阿诺德树木园（The Arnold Arboretum of Harvard University）</option>
+
+                                    <option value="http://www.luomus.fi/en">
+                                        赫尔辛基大学植物园（Botanic Garden）</option>
+
+                                    <option value="http://www.mobot.org/">
+                                        密苏里植物园（Missouri Botanical Garden）</option>
+
+                                    <option value="http://www.longwoodgardens.org/">
+                                        长木公园（Longwood Gardens）</option>
+
+                                    <option value="http://www.htbg.com/">
+                                        夏威夷热带植物园（Hawaii Tropical Botanical Garden）</option>
+
+                                    <option value="http://www.mortonarb.org/">
+                                        莫顿树木园（The Morton Arboretum）</option>
+
+                                    <option value="http://www.sdbgarden.org/">
+                                        圣地亚哥植物园（San Diego Botanic Garden）</option>
+
+                                    <option value="http://www.ntbg.org/">
+                                        美国国家热带植物园（National Tropical Botanical Garden）</option>
+
+                                    <option value="http://www.rbg.ca/">
+                                        加拿大皇家植物园（Royal Botanical Gardens, Canada）</option>
+
+                                    <option value="http://www.nybg.org/">
+                                        纽约植物园（The New York Botanical Garden）</option>
+
+                                    <option value="http://www.botanicgardens.org/">
+                                        丹佛植物园（Denver Botanic Gardens）</option>
+
+                                    <option value="http://www.rbge.org.uk/">
+                                        英国皇家植物园-爱丁堡植物园(Royal Botanic Garden Edinburgh)</option>
+                                </select>
+                            </li>
+                            <li>
+                                
+                                <select onclick="if(this.value == '') { this.options.remove(0); }" onchange='if(this.value!=""){window.open(this.value);}'
+                                        style="height: 20px; line-height: 20px; width: 160px; color: #418B00; margin-top: 6px;">
+                                    <option value="">其他链接</option>
+
+                                    <option value="http://www.expo2011.cn/">
+                                        2011西安世界园艺博览会</option>
+
+                                    <option value="https://www.zgkpw.org.cn/">
+                                        中国科普网</option>
+
+                                    <option value="http://www.mongabay.com/">
+                                        Tropical Rainforest Conservation</option>
+
+                                    <option value="http://www.hast.org.cn/">
+                                        湖北科普网</option>
+
+                                    <option value="http://www.kib.ac.cn/index.html">
+                                        中国科学院昆明植物研究所</option>
+
+                                    <option value="http://www.ibcas.ac.cn/">
+                                        中国科学院植物研究所</option>
+
+                                    <option value="http://www.publicgardens.org/">
+                                        APGA</option>
+
+                                    <option value="https://www.cvh.ac.cn/">
+                                        CVH中国数字植物标本馆</option>
+
+                                    <option value="http://www.nationalacademies.org/">
+                                        The National Academies</option>
+
+                                    <option value="http://www.bgci.org/">
+                                        BGCI</option>
+                                </select>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="bottom2" style="position: relative;">
+                        <div style="width:625px;">
+                            <br />
+                            版权所有：上海植物园&nbsp;&nbsp;&nbsp;&nbsp;地址：上海市龙吴路1111号&nbsp;&nbsp;&nbsp;&nbsp;电话：8621-54363369 <a href="https://bszs.conac.cn/sitename?method=show&id=0A65F89DD13D783CE053022819ACFD79" target="_blank"><img style="    margin-top: -2px;position: absolute;
+    left: 0;
+    top: 16px;
+    margin-left: 5px;" src="https://www.shbg.org/sites/zhiwuyuan/images/blue.png"></a><br />
+                            技术支持：<a href="http://www.ovinfo.com" target="_blank">上海创正信息技术有限公司</a> <a href="http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=31010402007881" target="_blank"><img src="https://www.shbg.org/sites/zhiwuyuan/images/ga.png">沪公网安备31010402007881号</a><br />
+                        </div>
+
+                        <div style="position: absolute; left: 20px; top: 10px;">
+                            <script type="text/javascript">                                document.write(unescape("%3Cspan id='_ideConac' %3E%3C/span%3E%3Cscript src='http://dcs.conac.cn/js/02/000/0000/60464223/CA020000000604642230002.js' type='text/javascript'%3E%3C/script%3E"));</script>
+                        </div>
+                        <a href="https://beian.miit.gov.cn/" target="_blank">
+                            <div style="position: absolute; right: 215px; top: 25px;">
+                                沪ICP备14026475号-1
+                            </div>
+                        </a>
+                        <div style="position: absolute; right: 120px; top: 30px;">
+                            <a href="https://weibo.com/shzwy" target="_blank"><img src="https://www.shbg.org/sites/zhiwuyuan/images/z1.jpg" style="width:80px" /></a>
+                        </div>
+                        <div style="position: absolute; right: 63px; top: 25px;">
+                            <img src="https://www.shbg.org/sites/zhiwuyuan/images/z2.png" style="width:52px"/>
+                        </div>
+                        <div style="position: absolute; right: -5px; top: 21px;">
+                            <img src="https://www.shbg.org/sites/zhiwuyuan/images/z3.jpg" style="width:60px"/>
+                        </div>
+                    </div>
+                    <div class="clearit">
+                    </div>
+                </div>
+                <div class="clearit">
+                </div>
+            </div>
+            <div class="center_bottom">
+                <script>
+                    var _hmt = _hmt || [];
+                    (function () {
+                        var hm = document.createElement("script");
+                        hm.src = "//hm.baidu.com/hm.js?d74815308af5df8b3dd16f629087feb3";
+                        var s = document.getElementsByTagName("script")[0];
+                        s.parentNode.insertBefore(hm, s);
+                    })();
+                </script>
+            </div>
+            <div class="clearit">
+            </div>
+        </div>
+        <div class="clearit">
+        </div>
+    </div>
+    
+    <script type="text/javascript" src="/JS/cs/CSVisitRecorder.js">
+    </script>
+    
+    <script type="text/javascript">
+        new CSVisitRecorder({
+            svrAddress: '/Handler.ashx?cmd=touchVisitRecord',
+            params: {
+                //101 - 首页访问统计
+                TotalType: '101',
+                //站点key（不同的站点是不一样的）
+                SiteKey: '310D9F96-4386-4BD0-AF5C-E9E2C1B99628', //站点id
+                CtgId: '',
+                InfId: '',
+                UserId: ''
+            }
+        });
+    </script>
+    </form>
+</body>
+</html>
+
+<script>
+    $("#p_4b08d430-5e51-4d34-b069-3e4d5f715ba4").hide();
+</script><!--cshtml20260929164005cshtml-->

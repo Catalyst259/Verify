@@ -1,0 +1,329 @@
+
+
+Method: claims.search | Fact Check Tools API | Google for Developers
+
+Skip to main content
+
+check_box
+
+Fact Check Tools API
+
+/
+
+English
+
+Deutsch
+
+Español
+
+Español – América Latina
+
+Français
+
+Indonesia
+
+Italiano
+
+Polski
+
+Português – Brasil
+
+Tiếng Việt
+
+Türkçe
+
+Русский
+
+עברית
+
+العربيّة
+
+فارسی
+
+हिंदी
+
+বাংলা
+
+ภาษาไทย
+
+中文 – 简体
+
+中文 – 繁體
+
+日本語
+
+한국어
+
+Sign in
+
+Guides
+
+REST Reference
+
+RPC Reference
+
+Terms Of Service
+
+check_box
+
+Fact Check Tools API
+
+Guides
+
+REST Reference
+
+RPC Reference
+
+Terms Of Service
+
+Overview
+
+v1alpha1
+
+REST Resources
+
+claims
+
+Overview
+imageSearch
+search
+
+pages
+
+Overview
+create
+delete
+get
+list
+update
+
+Home
+
+Products
+
+Fact Check Tools API
+
+REST Reference
+
+Method: claims.search
+
+Stay organized with collections
+
+Save and categorize content based on your preferences.
+
+Page Summary
+
+outlined_flag
+
+You can search through fact-checked claims using a GET HTTP request.
+
+The search request uses various query parameters to filter results, including text query, language code, review publisher site, maximum age, pagination size, page token, and offset.
+
+The request body must be empty.
+
+The response body contains a list of fact-checked claims and a token for pagination.
+
+HTTP request
+
+Query parameters
+
+Request body
+
+Response body
+
+JSON representation
+
+Try it!
+
+Search through fact-checked claims.
+
+HTTP request
+
+GET https://factchecktools.googleapis.com/v1alpha1/claims:search
+The URL uses gRPC Transcoding syntax.
+
+Query parameters
+
+Parameters
+
+query
+
+string
+
+Textual query string. Required unless reviewPublisherSiteFilter is specified.
+
+languageCode
+
+string
+
+The BCP-47 language code, such as "en-US" or "sr-Latn". Can be used to restrict results by language, though we do not currently consider the region.
+
+reviewPublisherSiteFilter
+
+string
+
+The review publisher site to filter results by, e.g. nytimes.com.
+
+maxAgeDays
+
+integer
+
+The maximum age of the returned search results, in days. Age is determined by either claim date or review date, whichever is newer.
+
+pageSize
+
+integer
+
+The pagination size. We will return up to that many results. Defaults to 10 if not set.
+
+pageToken
+
+string
+
+The pagination token. You may provide the nextPageToken returned from a previous List request, if any, in order to get the next page. All other fields must have the same values as in the previous request.
+
+offset
+
+integer
+
+An integer that specifies the current offset (that is, starting result location) in search results. This field is only considered if pageToken is unset. For example, 0 means to return results starting from the first matching result, and 10 means to return from the 11th result.
+
+Request body
+
+The request body must be empty.
+
+Response body
+
+Response from searching fact-checked claims.
+
+If successful, the response body contains data with the following structure:
+
+JSON representation
+
+{
+"claims": [
+{
+object (Claim)
+}
+],
+"nextPageToken": string
+}
+
+Fields
+
+claims[]
+
+object (Claim)
+
+The list of claims and all of their associated information.
+
+nextPageToken
+
+string
+
+The next pagination token in the Search response. It should be used as the pageToken for the following request. An empty value means no more results.
+
+Except as otherwise noted, the content of this page is licensed under the Creative Commons Attribution 4.0 License, and code samples are licensed under the Apache 2.0 License. For details, see the Google Developers Site Policies. Java is a registered trademark of Oracle and/or its affiliates.
+
+Last updated 2024-08-08 UTC.
+
+[[["Easy to understand","easyToUnderstand","thumb-up"],["Solved my problem","solvedMyProblem","thumb-up"],["Other","otherUp","thumb-up"]],[["Missing the information I need","missingTheInformationINeed","thumb-down"],["Too complicated / too many steps","tooComplicatedTooManySteps","thumb-down"],["Out of date","outOfDate","thumb-down"],["Samples / code issue","samplesCodeIssue","thumb-down"],["Other","otherDown","thumb-down"]],["Last updated 2024-08-08 UTC."],[],[]]
+
+Product Info
+
+Fact Check ClaimReview Guide
+
+Connect
+
+Blog
+
+Bluesky
+
+Instagram
+
+LinkedIn
+
+X (Twitter)
+
+YouTube
+
+Build
+
+Android
+
+Chrome
+
+Firebase
+
+Google AI Studio
+
+Google Antigravity
+
+Google Cloud
+
+Google Play
+
+View all
+
+Android
+
+Chrome
+
+Firebase
+
+Google Cloud Platform
+
+Google AI
+
+All products
+
+Terms
+
+Privacy
+
+Manage cookies
+
+English
+
+Deutsch
+
+Español
+
+Español – América Latina
+
+Français
+
+Indonesia
+
+Italiano
+
+Polski
+
+Português – Brasil
+
+Tiếng Việt
+
+Türkçe
+
+Русский
+
+עברית
+
+العربيّة
+
+فارسی
+
+हिंदी
+
+বাংলা
+
+ภาษาไทย
+
+中文 – 简体
+
+中文 – 繁體
+
+日本語
+
+한국어
+
