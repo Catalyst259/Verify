@@ -1,0 +1,27 @@
+* { box-sizing: border-box; }
+body { margin: 0; background: #f4f7fb; color: #1b2a41; font: 16px/1.6 system-ui, sans-serif; }
+main { max-width: 720px; margin: 40px auto; padding: 28px; background: white; border-radius: 16px; }
+h1 { margin: 0; color: #1265db; }
+h2 { font-size: 20px; }
+p, small { color: #627086; }
+fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+label { display: block; margin: 20px 0 6px; font-weight: 600; }
+input, textarea, button { font: inherit; }
+input, textarea { width: 100%; border: 1px solid #c8d2e0; border-radius: 8px; padding: 10px 12px; }
+textarea { resize: vertical; }
+input:focus, textarea:focus { outline: 2px solid #1265db; outline-offset: 2px; }
+#dropzone { padding: 20px; border: 2px dashed #aabbd2; border-radius: 10px; background: #f8faff; }
+#dropzone.dragover { border-color: #1265db; background: #e8f1ff; }
+#dropzone input { margin: 12px 0; border: 0; padding: 0; }
+#dropzone small { display: block; }
+button { border: 0; border-radius: 8px; cursor: pointer; }
+#submit { width: 100%; margin-top: 24px; padding: 12px; color: white; background: #1265db; font-weight: 600; }
+button:disabled { opacity: .55; cursor: wait; }
+#uploads { padding: 0; list-style: none; }
+#uploads li { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 13px; }
+#uploads img { width: 56px; height: 56px; object-fit: cover; border-radius: 6px; }
+#uploads span { flex: 1; overflow-wrap: anywhere; }
+#uploads button { padding: 5px 9px; }
+.error { color: #b42318; }
+pre { padding: 16px; background: #f4f7fb; border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
+@media (max-width: 760px) { main { margin: 0; padding: 20px; border-radius: 0; min-height: 100vh; } }
