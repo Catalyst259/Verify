@@ -6,7 +6,7 @@ import tomllib
 from pathlib import Path
 
 from .storage.models import StoredImage
-from .verification.models import ClaimExtractionResult
+from .extraction.models import ClaimExtractionResult
 
 # 必须在导入 browser-use 前设置，保持本地运行。
 os.environ.setdefault("ANONYMIZED_TELEMETRY", "false")
