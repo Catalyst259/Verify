@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>验一下 · 种草主张提取</title>
+  <title>验一下 · 旅行信息核验</title>
   <link rel="stylesheet" href="/style.css">
   <script src="/app.js" defer></script>
 </head>
 <body>
   <main>
     <h1>验一下</h1>
-    <p>放入你看到的种草内容，提取影响旅行决策的说法。</p>
+    <p>放入你看到的种草内容，提取影响旅行决策的说法并查看核验结果。</p>
     <form id="form">
       <fieldset id="fields">
         <label for="place">地点</label>
@@ -34,8 +34,8 @@
     </form>
     <p id="status" role="status" aria-live="polite"></p>
     <section id="result" hidden>
-      <h2>提取的主张</h2>
-      <p>以下内容来自提交材料，尚未核验真实性。</p>
+      <h2>核验结果</h2>
+      <p>以下展示提取的主张和本次核验结果；流程完成不代表所有主张都真实。</p>
       <pre id="claims"></pre>
     </section>
   </main>

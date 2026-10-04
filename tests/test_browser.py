@@ -13,7 +13,8 @@ from fastapi.responses import HTMLResponse
 import pytest
 import uvicorn
 
-from backend import agent, main
+from backend import main
+from backend.extraction import agent
 from backend.storage.repository import StorageRepository
 from test_api import png
 
@@ -115,7 +116,11 @@ def test_drag_upload_to_real_browser_agent(tmp_path, monkeypatch, with_links, mo
             page.wait_for_function("!document.querySelector('#fields').disabled", timeout=120_000)
             assert page.locator("#result").is_visible(), page.locator("#status").inner_text()
             output = json.loads(page.locator("#claims").inner_text())
-            assert output["target_place"] == "测试公园"
+            assert output["context"]["target_place"] == "测试公园"
+            assert output["run_id"]
+            assert output["status"] == "not_implemented"
+            assert set(output["subgraph_results"]) == {"fact", "route", "crowd", "experience"}
+            assert "核验功能尚未实现" in page.locator("#status").inner_text()
             assert output["claims"][0]["claim_id"] == "claim_001"
             assert requests[0]["link"] == links
             assert requests[0]["text"] == "工作日上午人少"

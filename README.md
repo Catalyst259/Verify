@@ -7,12 +7,18 @@
 ```text
 backend/
   main.py                  # 组装依赖、初始化存储、挂载前端
-  api.py                   # 两个 HTTP 接口及请求校验
+  api/
+    routes.py              # 文件上传与核验 HTTP 接口
+    dto.py                 # HTTP 请求模型及字段校验
+    error_handlers.py      # 异常到 HTTP 响应的映射及错误日志
+  common/
+    errors.py              # 跨模块共享的业务异常，不依赖 FastAPI
   extraction/
+    agent.py               # browser-use、多模态消息、模型协议与提示词
     service.py             # 读取图片、调用 Agent、校验来源并整理 claim
     models.py              # Claim、材料来源与提取结果
   verification/
-    service.py             # 运行主图，并适配现有提取响应
+    service.py             # 运行主图，返回完整核验运行结果
     graph.py               # 初始化、提取、上下文、子图分发、汇合与结果组装
     state.py               # 主图和子图 State、并行结果合并
     models.py              # 上下文、证据、子图发现与完整运行结果
@@ -22,7 +28,6 @@ backend/
     repository.py          # StorageRepository：SQLite 元数据与本地文件
     models.py              # 图片标识、MIME 与原始 bytes
     schema.sql             # Storage 自己的建表脚本
-  agent.py                 # browser-use、多模态消息、模型协议与提示词
 ```
 
 上传接口直接调用 Storage Repository；评估接口调用 VerificationService，由主图的提取节点调用 ClaimExtractionService。提取模块通过注入的 Repository 取图，再调用注入的 Agent 提取函数，并保留来源校验与顺序编号规则。Agent 接收地点、描述、链接和图片，不依赖 HTTP 请求 DTO。
@@ -51,7 +56,7 @@ python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ## 两个接口
 
 - `POST /api/files`：multipart 字段 `file`。返回 `{ "file_code": "file_…", "file_id": "file_…", "mime_type": "image/png" }`。两个标识同值，保持已有接口兼容。
-- `POST /api/verifications`：提交下方 JSON，同步等待并直接返回 `prompt.md` 规定的 `{ "target_place": "…", "claims": [...] }`。每张图不超过 10 MB，支持 PNG/JPEG/WebP/GIF；无 claim 时返回空数组。
+- `POST /api/verifications`：提交下方 JSON，同步等待并返回完整 `VerificationRun`，包含 `run_id`、`context`、`claims`、`subgraph_results` 和 `status`。地点位于 `context.target_place`；无 claim 时 `claims` 为空数组，`status` 为 `no_claims`。每张图不超过 10 MB，支持 PNG/JPEG/WebP/GIF。响应结构见 [API 文档](docs/成果/api.md)。
 
 ```json
 {
@@ -64,11 +69,11 @@ python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 
 后端重新读取图片原始 bytes，按顺序将 `file_code` 标签与多模态图片内容送入模型；根目录 `prompt.md` 原文追加到 Agent 系统提示词。使用 browser-use 的结构化输出并检查来源标识，统一顺序编号。禁用搜索工具，按提示词只读取提交链接及其必要页面内容。登录墙或不可访问页面仍可能需要用户补充截图。
 
-没有实现真实性核验、证据检索、报告、推荐、鉴权或任务队列。前端仅展示返回的 claim JSON。
+没有实现真实性核验、证据检索、报告、推荐、鉴权或任务队列。前端展示完整运行 JSON 和执行状态；流程完成不代表主张为真。
 
 ## 主图扩展
 
-主图使用 LangGraph 1.1.2。`VerificationService.run(VerificationInput(...))` 返回内部 `VerificationRun`，包含完整提取结果及按子图名称组织的结果；HTTP 接口继续返回原有提取 JSON。
+主图使用 LangGraph 1.1.2。`VerificationService.run(VerificationInput(...))` 是完整核验的调用入口，解包主图的 `GraphOutput.result` 并返回 `VerificationRun`；HTTP 接口直接返回这一结果。`ClaimExtractionService.extract(...)` 仅负责提取，返回 `ClaimExtractionResult`。
 
 默认注册 `fact`、`route`、`crowd`、`experience` 四个占位子图。`create_app` 或 `VerificationService` 的 `subgraphs` 参数可传入 `{名称: 编译后的子图}` 注册表，替换默认配置；若要新增一个子图，可先取得 `default_subgraphs()`，再加入新图。每个子图接收完整 `claims` 和共享 `context`，自行选择主张、拆分内部任务，并返回 `SubgraphResult`。一条主张可以被多个子图选择，也可以对应多项发现；主图不按 Claim 类型过滤。
 
@@ -85,7 +90,7 @@ python -m pytest -q
 VERIFY_BROWSER_TESTS=1 python -m pytest tests/test_browser.py -q
 ```
 
-接口测试使用临时数据库，覆盖上传、落盘、重启恢复、图片顺序、四字段提交和错误状态。浏览器测试覆盖拖拽两张图片、无链接及多个链接、页面实际读取、系统提示词与多模态消息传递、claim 展示；如使用非默认 Chromium 路径，可设置 `VERIFY_CHROMIUM`。测试中的替身输出仅用于验证链路，不代表真实模型提取效果；正式运行始终调用配置的模型。
+接口测试使用临时数据库，覆盖上传、落盘、重启恢复、图片顺序、四字段提交、错误状态，以及完整运行结果中的发现、证据和子图失败信息。浏览器测试覆盖拖拽两张图片、无链接及多个链接、页面实际读取、系统提示词与多模态消息传递、完整运行结果和状态展示；如使用非默认 Chromium 路径，可设置 `VERIFY_CHROMIUM`。测试中的替身输出仅用于验证链路，不代表真实模型提取效果；正式运行始终调用配置的模型。
 
 主图测试使用真实 LangGraph 和脚本化子图，覆盖完整 Claim 列表分发、同一主张的多项发现、新子图注册、分支数据隔离、并行汇合、异常/超时隔离、空结果短路和地点/证据依赖传递。占位子图不会生成核验结论。
 

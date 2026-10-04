@@ -5,15 +5,20 @@ import os
 import tomllib
 from pathlib import Path
 
-from .storage.models import StoredImage
-from .extraction.models import ClaimExtractionResult
+from pydantic import ValidationError
+
+from backend.common.errors import ExtractionFailed, ModelNotConfigured
+from backend.storage.models import StoredImage
+
+from .models import ClaimExtractionResult
 
 # 必须在导入 browser-use 前设置，保持本地运行。
 os.environ.setdefault("ANONYMIZED_TELEMETRY", "false")
 
 
 def load_config():
-    directory = Path(__file__).parent
+    """从 backend 目录按本地、正式、示例顺序读取模型配置。"""
+    directory = Path(__file__).resolve().parents[1]
     path = directory / "config.local.toml"
     if not path.exists():
         path = directory / "config.toml"
@@ -22,7 +27,7 @@ def load_config():
     with path.open("rb") as file:
         config = tomllib.load(file)
     if not config["api_key"].strip():
-        raise PermissionError("请先填写 backend/config.toml 中的 api_key、model 和 base_url")
+        raise ModelNotConfigured("请先填写 backend/config.toml 中的 api_key、model 和 base_url")
     return config
 
 
@@ -88,7 +93,7 @@ async def extract_claims(
         "links": links,
         "images": [{"file_code": item.file_code, "mime_type": item.mime_type} for item in images],
     }, ensure_ascii=False)
-    prompt = (Path(__file__).parents[1] / "prompt.md").read_text(encoding="utf-8")
+    prompt = (Path(__file__).resolve().parents[2] / "prompt.md").read_text(encoding="utf-8")
     try:
         agent = Agent(
             task=task,
@@ -110,7 +115,10 @@ async def extract_claims(
         async with asyncio.timeout(config["timeout_seconds"]):
             history = await agent.run(max_steps=config["max_steps"])
         if not history.is_successful():
-            raise ValueError("Agent 未完成提取，请检查模型配置或链接可访问性")
-        return ClaimExtractionResult.model_validate_json(history.final_result())
+            raise ExtractionFailed("Agent 未完成提取，请检查模型配置或链接可访问性")
+        try:
+            return ClaimExtractionResult.model_validate_json(history.final_result())
+        except ValidationError as error:
+            raise ExtractionFailed("Agent 返回了无效的提取结果") from error
     finally:
         await browser.kill()

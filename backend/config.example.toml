@@ -1,7 +1,7 @@
 # 复制为 config.toml 后填写。模型需要支持图片输入。
 api_key = ""
-base_url = "https://api.openai.com/v1"
-model = "gpt-4.1"
+base_url = "https://api.deepseek.com"
+model = "deepseek-flash"
 max_steps = 20
 timeout_seconds = 180
 browser_executable_path = ""
