@@ -2,16 +2,17 @@ from collections.abc import Awaitable, Callable, Mapping
 
 from langgraph.graph.state import CompiledStateGraph
 
+from backend.extraction.models import ClaimExtractionResult
 from backend.extraction.service import ClaimExtractionService
 from backend.storage.repository import StorageRepository
 
 from .capabilities import VerificationCapabilities
 from .graph import build_verification_graph
-from .models import ClaimExtractionResult, VerificationInput, VerificationRun
+from .models import VerificationInput, VerificationRun
 
 
 class VerificationService:
-    """运行完整主图，同时提供现有 HTTP 接口所需的提取响应。"""
+    """运行完整核验主图，返回主张、子图结果和整体执行状态。"""
 
     def __init__(
         self, storage: StorageRepository, extractor: Callable[..., Awaitable[ClaimExtractionResult]],
@@ -22,12 +23,6 @@ class VerificationService:
         self.graph = build_verification_graph(ClaimExtractionService(storage, extractor), subgraphs)
 
     async def run(self, request: VerificationInput) -> VerificationRun:
-        """返回包含子图结果的完整运行数据，供内部调用与后续报告使用。"""
+        """将业务输入交给主图，解包并返回完整运行结果。"""
         output = await self.graph.ainvoke({"request": request}, context=self.capabilities)
         return output["result"]
-
-    async def verify(
-        self, target_place: str, text: str, link: list[str], image: list[str]
-    ) -> ClaimExtractionResult:
-        run = await self.run(VerificationInput(target_place=target_place, text=text, link=link, image=image))
-        return ClaimExtractionResult(target_place=target_place, claims=run.claims)

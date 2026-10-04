@@ -87,14 +87,22 @@ form.addEventListener('submit', async event => {
   renderUploads();
   result.hidden = true;
   status.className = '';
-  status.textContent = '正在读取材料并提取主张，请稍候…';
+  status.textContent = '正在读取材料并执行核验，请稍候…';
   try {
     const data = await request('/api/verifications', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
     });
     document.querySelector('#claims').textContent = JSON.stringify(data, null, 2);
     result.hidden = false;
-    status.textContent = data.claims.length ? `已提取 ${data.claims.length} 条主张。` : '未提取到明确主张。';
+    const messages = {
+      no_claims: '未提取到明确主张，未进行核验。',
+      not_implemented: `已提取 ${data.claims.length} 条主张，核验功能尚未实现。`,
+      completed: `核验流程已完成，共 ${data.claims.length} 条主张。`,
+      partial: '核验未全部完成，请查看各项结果。',
+      failed: '核验失败，已保留提取的主张，请查看结果。',
+    };
+    status.className = ['partial', 'failed'].includes(data.status) ? 'error' : '';
+    status.textContent = messages[data.status] || '核验流程已结束，请查看结果。';
   } catch (error) {
     status.className = 'error';
     status.textContent = error.message;

@@ -3,6 +3,8 @@ from contextlib import closing
 from pathlib import Path
 from uuid import uuid4
 
+from backend.common.errors import ImageNotFound
+
 from .models import StoredImage
 
 
@@ -48,10 +50,10 @@ class StorageRepository:
                     "SELECT mime_type, storage_key FROM files WHERE file_code = ?", (code,)
                 ).fetchone()
                 if row is None:
-                    raise FileNotFoundError(code)
+                    raise ImageNotFound(code)
                 try:
                     data = (self.uploads / row[1]).read_bytes()
                 except FileNotFoundError:
-                    raise FileNotFoundError(code) from None
+                    raise ImageNotFound(code) from None
                 images.append(StoredImage(code, row[0], data))
         return images
