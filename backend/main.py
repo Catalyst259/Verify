@@ -6,15 +6,19 @@ from fastapi.staticfiles import StaticFiles
 
 from .agent import extract_claims
 from .api import create_router
+from .verification.capabilities import VerificationCapabilities
 from .storage.repository import StorageRepository
 from .verification.service import VerificationService
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def create_app(data_directory: Path = ROOT / "backend/data", extractor=extract_claims) -> FastAPI:
+def create_app(
+    data_directory: Path = ROOT / "backend/data", extractor=extract_claims,
+    *, subgraphs=None, capabilities: VerificationCapabilities | None = None,
+) -> FastAPI:
     storage = StorageRepository(data_directory)
-    verification = VerificationService(storage, extractor)
+    verification = VerificationService(storage, extractor, subgraphs=subgraphs, capabilities=capabilities)
 
     @asynccontextmanager
     async def lifespan(app):

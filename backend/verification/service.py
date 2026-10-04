@@ -1,29 +1,33 @@
-import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 
+from langgraph.graph.state import CompiledStateGraph
+
+from backend.extraction.service import ClaimExtractionService
 from backend.storage.repository import StorageRepository
-from .models import ClaimExtractionResult
+
+from .capabilities import VerificationCapabilities
+from .graph import build_verification_graph
+from .models import ClaimExtractionResult, VerificationInput, VerificationRun
 
 
 class VerificationService:
-    def __init__(self, storage: StorageRepository, extractor: Callable[..., Awaitable[ClaimExtractionResult]]):
-        self.storage = storage
-        self.extractor = extractor
+    """运行完整主图，同时提供现有 HTTP 接口所需的提取响应。"""
+
+    def __init__(
+        self, storage: StorageRepository, extractor: Callable[..., Awaitable[ClaimExtractionResult]],
+        *, subgraphs: Mapping[str, CompiledStateGraph] | None = None,
+        capabilities: VerificationCapabilities | None = None,
+    ):
+        self.capabilities = capabilities or VerificationCapabilities()
+        self.graph = build_verification_graph(ClaimExtractionService(storage, extractor), subgraphs)
+
+    async def run(self, request: VerificationInput) -> VerificationRun:
+        """返回包含子图结果的完整运行数据，供内部调用与后续报告使用。"""
+        output = await self.graph.ainvoke({"request": request}, context=self.capabilities)
+        return output["result"]
 
     async def verify(
         self, target_place: str, text: str, link: list[str], image: list[str]
     ) -> ClaimExtractionResult:
-        images = await asyncio.to_thread(self.storage.get_images, image)
-        result = await self.extractor(target_place, text or None, link, images)
-        result.target_place = target_place
-        source_refs = {"IMAGE": set(image), "LINK": set(link)}
-        for number, claim in enumerate(result.claims, 1):
-            claim.claim_id = f"claim_{number:03d}"
-            for source in claim.sources:
-                if source.source_type == "TEXT":
-                    if not text.strip():
-                        raise ValueError("Agent 引用了未提交的文字材料")
-                    source.source_ref = None
-                elif source.source_ref not in source_refs[source.source_type]:
-                    raise ValueError("Agent 返回了未提交的材料来源")
-        return result
+        run = await self.run(VerificationInput(target_place=target_place, text=text, link=link, image=image))
+        return ClaimExtractionResult(target_place=target_place, claims=run.claims)

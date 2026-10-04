@@ -1,6 +1,6 @@
-# 验一下 · 第一阶段
+# 验一下 · 提取能力与主图框架
 
-只实现「上传图片 → 提交地点、描述、多个图片和链接 → browser-use 提取 claim」。原生 HTML/JS 前端由 FastAPI 一并提供，无需 Node 构建或单独的前端服务。
+已实现「上传图片 → 提交地点、描述、多个图片和链接 → browser-use 提取 claim」，并接入 LangGraph 主图：提取后将完整 Claim 列表交给类别子图，再汇总执行结果。四类子图目前为明确返回未实现状态的占位图。原生 HTML/JS 前端由 FastAPI 一并提供，无需 Node 构建或单独的前端服务。
 
 ## 代码分层
 
@@ -8,9 +8,16 @@
 backend/
   main.py                  # 组装依赖、初始化存储、挂载前端
   api.py                   # 两个 HTTP 接口及请求校验
+  extraction/
+    service.py             # 读取图片、调用 Agent、校验来源并整理 claim
+    models.py              # Claim、材料来源与提取结果
   verification/
-    service.py             # VerificationService：读取图片、调用 Agent、整理 claim
-    models.py              # Claim、来源与提取结果
+    service.py             # 运行主图，并适配现有提取响应
+    graph.py               # 初始化、提取、上下文、子图分发、汇合与结果组装
+    state.py               # 主图和子图 State、并行结果合并
+    models.py              # 上下文、证据、子图发现与完整运行结果
+    capabilities.py        # 可注入的地点解析和证据来源，预留 Web Search
+    subgraphs/__init__.py  # 四类占位子图和注册入口
   storage/
     repository.py          # StorageRepository：SQLite 元数据与本地文件
     models.py              # 图片标识、MIME 与原始 bytes
@@ -18,7 +25,7 @@ backend/
   agent.py                 # browser-use、多模态消息、模型协议与提示词
 ```
 
-上传接口直接调用 Storage Repository；评估接口只调用 VerificationService。Service 通过注入的 Repository 取图，再调用注入的 Agent 提取函数；Agent 接收地点、描述、链接和图片，不依赖 HTTP 请求 DTO。当前直接使用具体 Repository，没有通用基类、额外 StorageService 或 Repository 转发层。
+上传接口直接调用 Storage Repository；评估接口调用 VerificationService，由主图的提取节点调用 ClaimExtractionService。提取模块通过注入的 Repository 取图，再调用注入的 Agent 提取函数，并保留来源校验与顺序编号规则。Agent 接收地点、描述、链接和图片，不依赖 HTTP 请求 DTO。
 
 ## 启动
 
@@ -59,6 +66,16 @@ python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 
 没有实现真实性核验、证据检索、报告、推荐、鉴权或任务队列。前端仅展示返回的 claim JSON。
 
+## 主图扩展
+
+主图使用 LangGraph 1.1.2。`VerificationService.run(VerificationInput(...))` 返回内部 `VerificationRun`，包含完整提取结果及按子图名称组织的结果；HTTP 接口继续返回原有提取 JSON。
+
+默认注册 `fact`、`route`、`crowd`、`experience` 四个占位子图。`create_app` 或 `VerificationService` 的 `subgraphs` 参数可传入 `{名称: 编译后的子图}` 注册表，替换默认配置；若要新增一个子图，可先取得 `default_subgraphs()`，再加入新图。每个子图接收完整 `claims` 和共享 `context`，自行选择主张、拆分内部任务，并返回 `SubgraphResult`。一条主张可以被多个子图选择，也可以对应多项发现；主图不按 Claim 类型过滤。
+
+地点解析及证据来源通过 `VerificationCapabilities` 注入 LangGraph runtime context，不写入 State。默认的 `web_search` 来源是待接入的能力占位，调用时明确抛出 `NotImplementedError`；当前不调用搜索供应商。子图异常或超时单独记录，其他子图结果仍可汇总。
+
+流程与模块说明见 [主图设计](docs/成果/主图设计.md)。实现参考 [LangGraph Graph API](https://docs.langchain.com/oss/python/langgraph/graph-api) 和 [子图通信](https://docs.langchain.com/oss/python/langgraph/use-subgraphs)。
+
 ## 检查
 
 ```bash
@@ -69,6 +86,8 @@ VERIFY_BROWSER_TESTS=1 python -m pytest tests/test_browser.py -q
 ```
 
 接口测试使用临时数据库，覆盖上传、落盘、重启恢复、图片顺序、四字段提交和错误状态。浏览器测试覆盖拖拽两张图片、无链接及多个链接、页面实际读取、系统提示词与多模态消息传递、claim 展示；如使用非默认 Chromium 路径，可设置 `VERIFY_CHROMIUM`。测试中的替身输出仅用于验证链路，不代表真实模型提取效果；正式运行始终调用配置的模型。
+
+主图测试使用真实 LangGraph 和脚本化子图，覆盖完整 Claim 列表分发、同一主张的多项发现、新子图注册、分支数据隔离、并行汇合、异常/超时隔离、空结果短路和地点/证据依赖传递。占位子图不会生成核验结论。
 
 第一阶段曾使用真实 DeepSeek Flash，对临时的两张文字图片、两条测试网页及文字描述完成提取，返回 5 条 claim，覆盖四种类型。重构后的回归测试通过 API 与 VerificationService 验证持久化、材料顺序、结果整理和无效引用，并保留三组真实浏览器链路测试；删除旧字段迁移与重复异常枚举测试。测试不代表对任意网页或材料的提取质量评测。
 
