@@ -1,26 +1,32 @@
 # 开源核验 Agent 调研
 
-调研日期：2026-10-05。依据官方仓库、源码与文档；未安装运行或验证旅行场景效果。
+核查日期：2026-10-05。按近期代码提交、发布和多人贡献筛选，优先借鉴工作流；未实跑或验证中文旅行场景效果。
 
-**有可包装调用的核验器，但本次未找到能原样接入现有四类子图的方案。** FACT 最接近现成能力；ROUTE、CROWD、EXPERIENCE 仍需领域证据与判断规则。建议先读 FIRE 的循环，再看 DEFAME 的可调用核验器，最后看 Loki 的模块；封装试点优先 DEFAME。
+**优先看 Local Deep Research 的逐主张核验、GPT Researcher 的调查与复审循环；DeerFlow 2.0 用来参考工具调度。** 前两者更接近本项目需求，三者都有近期实质维护记录。
 
-| 项目与源码入口 | 已核实的工作流 | 接入判断与主要门槛 |
+| 项目 | 活跃依据 | 最值得借鉴与阅读入口 |
 | --- | --- | --- |
-| [FIRE](https://github.com/mbzuai-nlp/fire) · [verify_atomic_claim.py](https://github.com/mbzuai-nlp/fire/blob/main/eval/fire/verify_atomic_claim.py) | 判断证据是否足够→补搜→再判断；可提前结束 | **借流程优先**。模型、Serper、SBERT/PyTorch 依赖；部分代码强制 CUDA。末尾强制真假二选一，应改为允许证据不足；根目录未见许可证文件，暂不建议复制代码。 |
-| [DEFAME](https://github.com/multimodal-ai-lab/DEFAME) · [FactChecker](https://github.com/multimodal-ai-lab/DEFAME/blob/main/defame/fact_checker.py) | [规划工具→取证→整理证据→裁决；信息不足继续循环](https://github.com/multimodal-ai-lab/DEFAME/blob/main/defame/procedure/variants/summary_based/dynamic.py)；支持图文 | **可包装，工具栈较重**。Apache-2.0（第三方目录另计）；同步 `verify_claim()` 返回报告与元数据，也提供 HTTP 服务。可注入工具、限制轮数；需模型及相应检索 API。 |
-| [Loki / OpenFactVerification](https://github.com/Libr-AI/OpenFactVerification) · [FactCheck](https://github.com/Libr-AI/OpenFactVerification/blob/main/factcheck/__init__.py) | 提取主张→筛选可核查项、生成问题→检索→逐条验证；返回证据文本、URL、关系与解释 | **可包装，需修整**。MIT；真实入口是同步 `check_text()`，需模型与检索 API 配置（默认 Serper）。已有 claims 可复用检索/验证模块；[QueryGenerator](https://github.com/Libr-AI/OpenFactVerification/blob/main/factcheck/core/QueryGenerator.py) 用 `eval` 解析模型输出，接入前应替换。 |
-| [SAFE](https://github.com/google-deepmind/long-form-factuality) · [check_atomic_fact](https://github.com/google-deepmind/long-form-factuality/blob/main/eval/safe/rate_atomic_fact.py) | 单条原子事实→多轮搜索→Supported / Not Supported | **适合最小基线**。Apache-2.0；需模型、Serper。[搜索实现](https://github.com/google-deepmind/long-form-factuality/blob/main/eval/safe/query_serper.py)仅保留摘要，需补回 URL；未获支持不能直接解释为假。 |
-| [OpenFactCheck v1](https://github.com/openfactcheck-research/openfactcheck/tree/v1) · [源码目录](https://github.com/openfactcheck-research/openfactcheck/tree/v1/src/openfactcheck) | 主张处理→检索→验证；统一封装多种核验流程并评估 | **可作对照框架**。[v1 GPL-3.0](https://github.com/openfactcheck-research/openfactcheck/blob/v1/LICENSE) / [main AGPL-3.0](https://github.com/openfactcheck-research/openfactcheck/blob/main/LICENSE)；模型与搜索依赖随 solver 配置。[v1 文档](https://github.com/openfactcheck-research/openfactcheck/blob/v1/README.md)提供 `ResponseEvaluator.evaluate()`；main 的 v2 开发中，应固定版本。 |
+| [Local Deep Research](https://github.com/LearningCircuit/local-deep-research) · MIT | **2026-10-05** 仍有[去重与 URL 规范化代码修复](https://github.com/LearningCircuit/local-deep-research/commit/41a8bc9b278ca100fbd80af19a8070da90b62ba5)；[v1.10.6](https://github.com/LearningCircuit/local-deep-research/releases/tag/v1.10.6)列出 7 位贡献者 | **最贴近核验需求**。[Verify with Research](https://github.com/LearningCircuit/local-deep-research/blob/main/src/local_deep_research/web/static/js/pages/note-detail.js#L3145)：提取事实主张→合并问题启动取证→按同一份报告逐条给支持／矛盾／部分支持／未核实及来源。另看[检索策略](https://github.com/LearningCircuit/local-deep-research/blob/main/src/local_deep_research/advanced_search_system/strategies/langgraph_agent_strategy.py)，学习按发现选择工具、拆分子问题。 |
+| [GPT Researcher](https://github.com/assafelovic/gpt-researcher) · Apache-2.0 | **2026-09-26** 发布 [v3.7.0](https://github.com/assafelovic/gpt-researcher/releases/tag/v3.7.0)，含检索插件、上下文过滤及多位社区作者的代码修复 | **最适合先试接入调查能力**。[编排](https://github.com/assafelovic/gpt-researcher/blob/main/multi_agents/agents/orchestrator.py)：规划→并行研究→写稿→事实复审→返修；[子任务循环](https://github.com/assafelovic/gpt-researcher/blob/main/multi_agents/agents/editor.py)把研究、审查、修订分开。 |
+| [DeerFlow 2.0](https://github.com/bytedance/deer-flow) · MIT | **2026-10-05** 仍合入多位作者的[运行时和浏览器修复](https://github.com/bytedance/deer-flow/commits/main/) | **适合借工程组织方式**。[Deep Research 工作流](https://github.com/bytedance/deer-flow/blob/main/skills/public/deep-research/SKILL.md)：广搜→按维度深挖→找反例→查缺口；按任务加载工具与技能，子任务隔离上下文。当前 2.0 已是通用 Agent 运行框架，读旧版固定流程图容易对不上代码。 |
 
-另查了 [FactAgent](https://github.com/HySonLab/FactAgent)：其 LangGraph supervisor 调度拆解、查询、取证、裁决值得参考，但 [源码](https://github.com/HySonLab/FactAgent/blob/main/src/main_agent.py)实际入口是 `process_claim()`、返回执行步骤，与 README 的 `verify_claim()` 示例不符，暂不列入优先接入名单。
+可以拿来用的程度：
 
-以下是**针对本项目的设计建议**，不是上述项目已经实现的旅行能力：
+- **LDR** 有 `pip install local-deep-research` 和 [`detailed_research(...)`](https://github.com/LearningCircuit/local-deep-research/blob/main/src/local_deep_research/api/research_functions.py)，可复用检索与带来源的研究结果；[Notes 核验服务](https://github.com/LearningCircuit/local-deep-research/blob/main/src/local_deep_research/research_library/notes/services/note_ai_service.py#L866)属于应用功能，默认抽取 5 条、最多 10 条事实主张，接入时需封装并适配本项目的 180 秒预算。
+- **GPT Researcher** 有异步 [`conduct_research()`](https://github.com/assafelovic/gpt-researcher/blob/main/gpt_researcher/agent.py)，支持指定来源、域名和 MCP；可只取研究上下文与来源，省掉长报告生成。当前要求 Python 3.12+。
+- **DeerFlow** 提供 [`DeerFlowClient`](https://github.com/bytedance/deer-flow#embedded-python-client)，可嵌入 Python；对已有主图而言，更值得借工具、上下文和任务管理设计。
 
-| CLAIM | 建议工作流 | 应借鉴的部分 |
-| --- | --- | --- |
-| FACT | 确认 POI 与适用日期→优先查官方开放、预约、收费信息→检查条件与冲突→必要时补搜→支持/矛盾/证据不足 | FIRE 的补搜与早停；DEFAME 的工具和证据报告。 |
-| ROUTE | 明确起终点、交通方式、出行时间→地图路径计算→核对入口、绕行与通行限制→比较距离和时长区间 | 借工具调度；地图数据与计算应作为证据，不能只靠网页文字或模型估算。 |
-| CROWD | 对齐地点、日期、星期、时段、节假日→收集相同时段的近期记录→区分实时与历史→给范围和缺口 | 借多来源检索；无匹配时段数据就保留未知，不能由一般热度推出当前排队时长。 |
-| EXPERIENCE | 拆出安静、舒适、出片等维度→匹配人群、季节、时段→汇总独立体验与反例→说明一致性及适用条件 | 借证据组织；不把多数评论当事实真值，也不强制真假标签。 |
+一个影响设计的细节：GPT Researcher 的 [FactChecker](https://github.com/assafelovic/gpt-researcher/blob/main/multi_agents/agents/fact_checker.py)只复审已有草稿，本身没有检索调用；其编排达到修订上限会放行。建议借“独立复审”这一职责，改成发现证据缺口就补搜，预算耗尽则保留未知或待复核。
 
-接入建议：保留现有主图，各子图自行选择 claims；新增适配层，把外部输出转换为 `ClaimFinding + Evidence(source, content, url)`，保留原 `claim_id` 并填写 `selected_claim_ids`。检索优先通过 `VerificationCapabilities.evidence_sources` 注入，已有原子主张不再重复抽取。循环设置检索预算并服从子图 180 秒期限；同步核验器宜隔离运行，避免阻塞异步主图。结论先写入 finding，**`SubgraphResult.status` 只表示执行状态**。最小试点先做 FACT，验证证据可追溯和过期信息处理，再扩展其余三类。
+本项目建议采用：**选择主张→拆核验问题→调用领域工具→保存原文与出处→检查时效、反证和缺口→补搜或返回结论**。四类共用证据管理，分别设计判断规则：
+
+| CLAIM | 需要补上的领域逻辑 |
+| --- | --- |
+| FACT | 官方信息优先；核对 POI、日期和适用条件；允许支持、矛盾、部分支持、证据不足。 |
+| ROUTE | 明确起终点、交通方式和出行时间；用地图计算并核对入口与通行限制。 |
+| CROWD | 对齐日期、时段、节假日；区分实时记录与历史规律，缺数据时保留未知。 |
+| EXPERIENCE | 按安静、舒适等维度组织独立体验与反例，说明适用人群和条件，不强制真假。 |
+
+若先做一次接入试验，建议在 FACT 子图内封装 GPT Researcher 的取证能力，借 LDR 的逐条核验结构；保留现有 `claim_id`，映射为 `ClaimFinding + Evidence`，`status` 继续只表示执行状态。无需替换现有主图。
+
+[Open Deep Research](https://github.com/langchain-ai/open_deep_research)已于 **2026-08-21** 归档，本轮不列为活跃社区推荐。
