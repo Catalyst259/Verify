@@ -81,7 +81,6 @@ async def extract_claims(
     )
     browser = Browser(
         headless=True,
-        use_cloud=False,
         enable_default_extensions=False,
         executable_path=config["browser_executable_path"] or None,
         # 分享短链可能跨域重定向；读取范围由 prompt.md 约束。无链接时禁止网页导航。
@@ -117,7 +116,7 @@ async def extract_claims(
         if not history.is_successful():
             raise ExtractionFailed("Agent 未完成提取，请检查模型配置或链接可访问性")
         try:
-            return ClaimExtractionResult.model_validate_json(history.final_result())
+            return ClaimExtractionResult.model_validate_json(str(history.final_result()))
         except ValidationError as error:
             raise ExtractionFailed("Agent 返回了无效的提取结果") from error
     finally:

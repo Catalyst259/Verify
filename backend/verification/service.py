@@ -1,7 +1,5 @@
 from collections.abc import Awaitable, Callable, Mapping
 
-from langgraph.graph.state import CompiledStateGraph
-
 from backend.extraction.models import ClaimExtractionResult
 from backend.extraction.service import ClaimExtractionService
 from backend.storage.repository import StorageRepository
@@ -9,6 +7,7 @@ from backend.storage.repository import StorageRepository
 from .capabilities import VerificationCapabilities
 from .graph import build_verification_graph
 from .models import VerificationInput, VerificationRun
+from .subgraphs import VerificationSubgraph
 
 
 class VerificationService:
@@ -16,7 +15,7 @@ class VerificationService:
 
     def __init__(
         self, storage: StorageRepository, extractor: Callable[..., Awaitable[ClaimExtractionResult]],
-        *, subgraphs: Mapping[str, CompiledStateGraph] | None = None,
+        *, subgraphs: Mapping[str, VerificationSubgraph] | None = None,
         capabilities: VerificationCapabilities | None = None,
     ):
         self.capabilities = capabilities or VerificationCapabilities()
