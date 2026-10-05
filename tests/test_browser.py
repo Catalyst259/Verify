@@ -16,6 +16,7 @@ import uvicorn
 from backend import main
 from backend.extraction import agent
 from backend.storage.repository import StorageRepository
+from backend.verification.capabilities import VerificationCapabilities
 from test_api import png
 
 pytestmark = pytest.mark.skipif(os.getenv("VERIFY_BROWSER_TESTS") != "1", reason="显式启用 Chromium 集成测试")
@@ -85,7 +86,10 @@ def test_drag_upload_to_real_browser_agent(tmp_path, monkeypatch, with_links, mo
                 "choices": [{"index": 0, "message": {"role": "assistant", "content": json.dumps(content)},
                              "finish_reason": "stop"}]}
 
-    app.mount("/", main.create_app(tmp_path))
+    async def skip_fact(*args):
+        return "[]"
+
+    app.mount("/", main.create_app(tmp_path, capabilities=VerificationCapabilities(fact_llm=skip_fact)))
     # 挂载的子应用不会自动运行 lifespan。
     StorageRepository(tmp_path).initialize()
     with sync_playwright() as playwright, serve(app) as base_url:
@@ -118,9 +122,10 @@ def test_drag_upload_to_real_browser_agent(tmp_path, monkeypatch, with_links, mo
             output = json.loads(page.locator("#claims").inner_text())
             assert output["context"]["target_place"] == "测试公园"
             assert output["run_id"]
-            assert output["status"] == "not_implemented"
+            assert output["status"] == "partial"
+            assert output["subgraph_results"]["fact"]["status"] == "skipped"
             assert set(output["subgraph_results"]) == {"fact", "route", "crowd", "experience"}
-            assert "核验功能尚未实现" in page.locator("#status").inner_text()
+            assert "核验未全部完成" in page.locator("#status").inner_text()
             assert output["claims"][0]["claim_id"] == "claim_001"
             assert requests[0]["link"] == links
             assert requests[0]["text"] == "工作日上午人少"

@@ -132,16 +132,24 @@ def test_empty_claims_skip_context_and_subgraphs(tmp_path):
     assert run.subgraph_results == {}
 
 
-def test_default_subgraphs_are_explicit_placeholders(tmp_path):
+def test_default_registry_runs_fact_and_keeps_other_placeholders(tmp_path):
     async def extract(*args):
         return extracted()
 
-    verification = service(tmp_path, extract)
+    calls = []
+
+    async def skip_fact(prompt, task):
+        calls.append(task)
+        return "[]"
+
+    verification = service(tmp_path, extract, capabilities=VerificationCapabilities(fact_llm=skip_fact))
     run = asyncio.run(verification.run(VerificationInput(target_place="公园", text="免费开放，周末游客少")))
-    assert run.status == "not_implemented"
+    assert run.status == "partial"
+    assert len(calls) == 1
+    assert run.subgraph_results["fact"].status == "skipped"
     assert set(run.subgraph_results) == {"fact", "route", "crowd", "experience"}
-    assert all(result.status == "not_implemented" and result.findings == []
-               for result in run.subgraph_results.values())
+    assert all(run.subgraph_results[name].status == "not_implemented"
+               for name in ("route", "crowd", "experience"))
     with pytest.raises(NotImplementedError, match="尚未接入"):
         asyncio.run(verification.capabilities.evidence_sources["web_search"].search("公园"))
 

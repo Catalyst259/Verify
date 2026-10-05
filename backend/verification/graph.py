@@ -15,7 +15,7 @@ from backend.extraction.service import ClaimExtractionService
 
 from .capabilities import VerificationCapabilities
 from .models import SubgraphResult, VerificationContext, VerificationRun
-from .state import BranchInput, GraphInput, GraphOutput, SubgraphState, VerificationState
+from .state import BranchInput, GraphInput, GraphOutput, SubgraphInput, VerificationState
 from .subgraphs import VerificationSubgraph, default_subgraphs
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ def build_verification_graph(
         name = state["graph_name"]
         try:
             # 子图获得独立副本，内部选择和修改不会改变其他分支的材料。
-            payload: SubgraphState = {
+            payload: SubgraphInput = {
                 "claims": [claim.model_copy(deep=True) for claim in state["claims"]],
                 "context": state["context"].model_copy(deep=True),
             }

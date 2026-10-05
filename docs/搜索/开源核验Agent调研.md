@@ -2,6 +2,8 @@
 
 核查日期：2026-10-05。按近期代码提交、发布和多人贡献筛选，优先借鉴工作流；未实跑或验证中文旅行场景效果。
 
+研究与核验流程的 LangGraph 状态机简版：[LDR](Research核验状态机.md)、[GPT Researcher](GPTResearcher研究与核验状态机.md)、[DeerFlow](DeerFlow研究与核验状态机.md)。本项目选择借鉴 LDR 的流程，不将 `local-deep-research` 作为依赖引入。
+
 **优先看 Local Deep Research 的逐主张核验、GPT Researcher 的调查与复审循环；DeerFlow 2.0 用来参考工具调度。** 前两者更接近本项目需求，三者都有近期实质维护记录。
 
 | 项目 | 活跃依据 | 最值得借鉴与阅读入口 |

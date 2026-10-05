@@ -2,7 +2,7 @@ from typing import Annotated, NotRequired, TypedDict
 
 from backend.extraction.models import Claim
 
-from .models import SubgraphResult, VerificationContext, VerificationInput, VerificationRun
+from .models import ClaimFinding, SubgraphResult, VerificationContext, VerificationInput, VerificationRun
 
 
 def merge_subgraph_results(
@@ -40,12 +40,32 @@ class VerificationState(TypedDict):
     result: NotRequired[VerificationRun]
 
 
-class SubgraphState(TypedDict):
-    """子图输入必须包含主张列表和共享上下文，result 在子图完成后写入。"""
+class SubgraphInput(TypedDict):
+    """主图传入完整主张与共享上下文；子图自行选择需要核验的内容。"""
 
     claims: list[Claim]
     context: VerificationContext
-    result: NotRequired[SubgraphResult]
+
+
+class SubgraphOutput(TypedDict):
+    """子图完成后必须返回结果，内部取证状态不作为主图输出。"""
+
+    result: SubgraphResult
+
+
+class SubgraphState(SubgraphInput, total=False):
+    """各类别子图共用的状态；只有 claims/context 是调用时的必填字段。
+
+    selected_claim_ids 在选择后写入，findings/notes/error 在执行中积累，
+    result 由最终组装步骤写入。轮次、预算和中间材料由具体子图扩展，
+    模型客户端和工具连接通过 runtime context 注入。
+    """
+
+    selected_claim_ids: list[str]
+    findings: list[ClaimFinding]
+    notes: list[str]
+    error: str | None
+    result: SubgraphResult
 
 
 class BranchInput(TypedDict):
