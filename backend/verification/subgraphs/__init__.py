@@ -8,7 +8,10 @@ from ..models import SubgraphResult
 from ..state import SubgraphState
 
 
-def build_placeholder_subgraph(name: str) -> CompiledStateGraph:
+VerificationSubgraph = CompiledStateGraph[SubgraphState, VerificationCapabilities]
+
+
+def build_placeholder_subgraph(name: str) -> VerificationSubgraph:
     """创建可执行占位子图，明确返回未实现状态。"""
 
     def pending(state: SubgraphState):
@@ -25,5 +28,5 @@ def build_placeholder_subgraph(name: str) -> CompiledStateGraph:
     return builder.compile(name=name)
 
 
-def default_subgraphs() -> dict[str, CompiledStateGraph]:
+def default_subgraphs() -> dict[str, VerificationSubgraph]:
     return {name: build_placeholder_subgraph(name) for name in ("fact", "route", "crowd", "experience")}

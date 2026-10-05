@@ -15,20 +15,21 @@ from backend.extraction.service import ClaimExtractionService
 
 from .capabilities import VerificationCapabilities
 from .models import SubgraphResult, VerificationContext, VerificationRun
-from .state import BranchInput, GraphInput, GraphOutput, VerificationState
-from .subgraphs import default_subgraphs
+from .state import BranchInput, GraphInput, GraphOutput, SubgraphState, VerificationState
+from .subgraphs import VerificationSubgraph, default_subgraphs
 
 logger = logging.getLogger(__name__)
 
 
 def build_verification_graph(
     extraction: ClaimExtractionService,
-    subgraphs: Mapping[str, CompiledStateGraph] | None = None,
-) -> CompiledStateGraph:
+    subgraphs: Mapping[str, VerificationSubgraph] | None = None,
+) -> CompiledStateGraph[VerificationState, VerificationCapabilities, GraphInput, GraphOutput]:
     """编译主图；注册表决定子图范围，主图不按 Claim 类型分派。"""
     registered = dict(default_subgraphs() if subgraphs is None else subgraphs)
 
-    def initialize(state: VerificationState):
+    def initialize(state: GraphInput):
+        """初始化，生成全局 run_id 和 context"""
         return {
             "run_id": uuid4().hex, "stage": "initialized", "subgraph_results": {},
             "context": VerificationContext(
@@ -37,14 +38,17 @@ def build_verification_graph(
             ),
         }
 
-    async def extract(state: VerificationState):
+    async def extract(state: GraphInput):
+        """调用提取器，生成主张列表并更新 stage"""
         result = await extraction.extract(**state["request"].model_dump())
         return {"claims": result.claims, "stage": "extracted"}
 
     def after_extraction(state: VerificationState):
+        """提取后分支，若无主张则直接汇总结果"""
         return "prepare_context" if state["claims"] else "assemble_result"
 
     async def prepare_context(state: VerificationState, runtime: Runtime[VerificationCapabilities]):
+        """调用地点解析器，更新 context 中的 resolved_place"""
         context = state["context"]
         resolver = runtime.context.place_resolver
         if resolver is not None:
@@ -53,22 +57,23 @@ def build_verification_graph(
         return {"context": context, "stage": "context_prepared"}
 
     def dispatch(state: VerificationState):
+        """分发子图，若无注册子图则直接汇总结果"""
         if not registered:
             return "assemble_result"
-        return [Send("run_subgraph", {
-            "graph_name": name, "claims": state["claims"], "context": state["context"],
-        }) for name in registered]
+        return [Send("run_subgraph", {"graph_name": name, "claims": state["claims"], "context": state["context"],}) for name in registered]
 
     async def run_subgraph(state: BranchInput, runtime: Runtime[VerificationCapabilities]):
         name = state["graph_name"]
         try:
             # 子图获得独立副本，内部选择和修改不会改变其他分支的材料。
-            payload = {
+            payload: SubgraphState = {
                 "claims": [claim.model_copy(deep=True) for claim in state["claims"]],
                 "context": state["context"].model_copy(deep=True),
             }
             async with asyncio.timeout(runtime.context.subgraph_timeout_seconds):
                 output = await registered[name].ainvoke(payload, context=runtime.context)
+            if "result" not in output:
+                raise KeyError("result")
             result = SubgraphResult.model_validate(output["result"])
             if result.graph_name != name:
                 raise ValueError("子图结果名称与注册名称不一致")

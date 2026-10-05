@@ -1,4 +1,4 @@
-from typing import Annotated, TypedDict
+from typing import Annotated, NotRequired, TypedDict
 
 from backend.extraction.models import Claim
 
@@ -25,22 +25,27 @@ class GraphOutput(TypedDict):
     result: VerificationRun
 
 
-class VerificationState(TypedDict, total=False):
+class VerificationState(TypedDict):
+    """LangGraph 主图状态，包含业务输入、运行 ID、执行阶段、主张列表、共享上下文、子图结果和最终输出。
+
+    提取完成后的节点使用此类型；初始化和提取节点仅依赖 GraphInput。
+    result 在最终汇总后才存在，其余字段由输入、初始化和提取步骤准备。
+    """
     request: VerificationInput
     run_id: str
     stage: str
     claims: list[Claim]
     context: VerificationContext
     subgraph_results: Annotated[dict[str, SubgraphResult], merge_subgraph_results]
-    result: VerificationRun
+    result: NotRequired[VerificationRun]
 
 
-class SubgraphState(TypedDict, total=False):
-    """子图只接收完整主张列表和共享上下文，内部字段可自行扩展。"""
+class SubgraphState(TypedDict):
+    """子图输入必须包含主张列表和共享上下文，result 在子图完成后写入。"""
 
     claims: list[Claim]
     context: VerificationContext
-    result: SubgraphResult
+    result: NotRequired[SubgraphResult]
 
 
 class BranchInput(TypedDict):
