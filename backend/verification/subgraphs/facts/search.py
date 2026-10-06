@@ -1,7 +1,7 @@
 """browser-use 取证适配：工具预算和网页记录由代码持有，Agent 只选择动作。"""
 
 import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from datetime import date, datetime, timezone
 import json
 from time import perf_counter
@@ -9,6 +9,8 @@ from urllib.parse import quote_plus, urlsplit
 from uuid import uuid4
 
 from backend.extraction.agent import load_config
+from backend.sources.xiaohongshu import canonical_note_id
+from backend.verification.capabilities import EvidenceSource
 from backend.verification.models import FactSourceType
 
 from .diagnostics import page_category, record, timed
@@ -19,7 +21,8 @@ from .state import FactClaimState, FactRoundState
 class SearchSession:
     """单条 Claim 一轮的真实取证记录；超时或 Agent 输出损坏也不丢失材料。"""
 
-    def __init__(self, claim: FactClaimState, deadline_at: datetime, *, checked_at: datetime | None = None):
+    def __init__(self, claim: FactClaimState, deadline_at: datetime, *, checked_at: datetime | None = None,
+                 input_urls: tuple[str, ...] = (), evidence_sources: Mapping[str, EvidenceSource] | None = None):
         self.claim_id = claim.plan.claim_id
         self.deadline_at = deadline_at
         self.round = FactRoundState(round_number=len(claim.rounds) + 1)
@@ -28,6 +31,9 @@ class SearchSession:
         self.diagnostic_context = {"claim_id": self.claim_id, "round_number": self.round.round_number,
                                    "checked_at": checked_at.isoformat() if checked_at else None}
         self.seen = {(item.url, item.content) for item in claim.evidence}
+        self.evidence_sources = evidence_sources or {}
+        self.input_note_ids = frozenset(identity for url in input_urls
+                                        if (identity := canonical_note_id(url)) is not None)
 
     def remaining_budget(self) -> dict:
         return {
@@ -44,11 +50,13 @@ class SearchSession:
         self.round = FactRoundState.model_validate(self.round.model_dump() | changes)
 
     async def execute(self, operation: Callable[[], Awaitable], *, query: bool = False,
-                      diagnostic: dict | None = None) -> dict:
+                      diagnostic: dict | None = None, retrieved_at: datetime | None = None) -> dict:
         """执行一次搜索或读取；失败也计数，拒绝超额动作并返回最新预算。"""
         expired = datetime.now(timezone.utc) >= self.deadline_at
         if expired or self.exhausted() or (query and self.round.queries >= MAX_QUERIES):
             return {"stopped": True, "deadline_reached": expired, "remaining_budget": self.remaining_budget()}
+        query_index = self.round.queries if query else None
+        tool_call = self.round.tool_calls + 1
         self.update_round(
             tool_calls=self.round.tool_calls + 1,
             queries=self.round.queries + int(query),
@@ -61,14 +69,22 @@ class SearchSession:
                 data = await operation()
             if query:
                 data = data[:MAX_RESULTS_PER_QUERY]
-                self.update_round(results_per_query=[*self.round.results_per_query[:-1], len(data)])
+                counts = list(self.round.results_per_query)
+                counts[query_index] = len(data)
+                self.update_round(results_per_query=counts)
             else:
+                if canonical_note_id(data.get("url", "")) in self.input_note_ids:
+                    raise ValueError("输入笔记不能作为本次核验的外部独立证据")
                 item = FactEvidence.model_validate(data | {
-                    "evidence_id": uuid4().hex, "retrieved_at": datetime.now(timezone.utc),
+                    "evidence_id": uuid4().hex,
+                    "retrieved_at": retrieved_at if retrieved_at is not None else datetime.now(timezone.utc),
                 })
                 key = (item.url, item.content)
                 if key in self.seen:
                     data = {"duplicate": True}
+                elif len(self.evidence) >= MAX_EVIDENCE_PER_ROUND:
+                    return {"stopped": True, "deadline_reached": False,
+                            "remaining_budget": self.remaining_budget()}
                 else:
                     self.seen.add(key)
                     self.evidence.append(item)
@@ -93,7 +109,7 @@ class SearchSession:
                                   elapsed_ms=round((perf_counter() - started) * 1000, 3),
                                   error_type=type(failure).__name__, error=str(failure) or type(failure).__name__)
                 self.diagnostics.append(record("page_failure", **self.diagnostic_context,
-                                               tool_call=self.round.tool_calls, **diagnostic))
+                                               tool_call=tool_call, **diagnostic))
         if diagnostic is not None and failure is not None:
             result["diagnostic"] = diagnostic
         return result | {"remaining_budget": self.remaining_budget(),
@@ -211,12 +227,12 @@ def create_tools(session: SearchSession, browser):
         if name != "done":
             tools.exclude_action(name)
 
-    @tools.action("搜索网页候选（最多 5 个）；摘要不能作为证据，需 read_page 读取正文。")
+    @tools.action("搜索网页候选（最多 10 个），需 read_page 读取正文；已配置的小红书并行读取 WEB 正文证据。")
     async def search_web(query: str):
         diagnostic = {"operation": "search_web"}
         async def search():
             data = await page_data(browser, "https://html.duckduckgo.com/html/?q=" + quote_plus(query), """() => ({
-                results: Array.from(document.querySelectorAll('.result__a')).slice(0, 5).map(a => ({
+                results: Array.from(document.querySelectorAll('.result__a')).slice(0, 10).map(a => ({
                     title: a.innerText,
                     url: new URL(a.href).searchParams.get('uddg') || a.href
                 })),
@@ -227,7 +243,38 @@ def create_tools(session: SearchSession, browser):
                 diagnostic["category"] = category
                 raise ValueError(f"搜索页面不可用：{category}；详见页面诊断")
             return data["results"]
-        result = await session.execute(search, query=True, diagnostic=diagnostic)
+        source = session.evidence_sources.get("xiaohongshu")
+        if source is None:
+            result = await session.execute(search, query=True, diagnostic=diagnostic)
+        else:
+            first_evidence = len(session.evidence)
+
+            async def crawler_execute(operation, *, query=False, **kwargs):
+                budget = session.remaining_budget()
+                if not query and (budget["tool_calls"] <= 1 or budget["evidence"] <= 1):
+                    return {"stopped": True,
+                            "deadline_reached": datetime.now(timezone.utc) >= session.deadline_at,
+                            "remaining_budget": budget}
+                return await session.execute(operation, query=query, **kwargs)
+
+            async def crawl():
+                try:
+                    await source.search(query, execute=crawler_execute, excluded_ids=session.input_note_ids,
+                                        deadline_at=session.deadline_at)
+                    return None
+                except Exception as error:
+                    message = f"Xiaohongshu: {type(error).__name__}: {str(error) or '来源未完成'}"
+                    session.update_round(search_error="; ".join(filter(None, [session.round.search_error, message])))
+                    return message
+
+            result, crawler_error = await asyncio.gather(
+                session.execute(search, query=True, diagnostic=diagnostic), crawl(),
+            )
+            result["crawler_evidence"] = [item.model_dump(mode="json") for item in session.evidence[first_evidence:]
+                                          if canonical_note_id(item.url) is not None]
+            result["crawler_error"] = crawler_error
+            result["remaining_budget"] = session.remaining_budget()
+            result["deadline_reached"] = datetime.now(timezone.utc) >= session.deadline_at
         return ActionResult(extracted_content=json.dumps(result, ensure_ascii=False))
 
     @tools.action("读取网页可见正文；仅确认发布主体后才标记 OFFICIAL，身份不明使用 WEB。")

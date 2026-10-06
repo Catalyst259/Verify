@@ -77,7 +77,7 @@ def test_two_rounds_preserve_completed_claims_evidence_and_inject_instructions()
         data = json.loads(task)
         assert prompt.startswith("# Fact Search") and "# PlanSkill" not in prompt
         assert data["context"]["target_place"] == "公园"
-        assert data["remaining_budget"]["tool_calls"] == 5
+        assert data["remaining_budget"]["tool_calls"] == 20
         searches.append((session.claim_id, data["round_number"]))
         await read(session, f"第 {data['round_number']} 轮的原文")
         return session.result().model_dump_json()
@@ -233,7 +233,7 @@ def new_session():
                          datetime.now(timezone.utc) + timedelta(seconds=10))
 
 
-def test_tool_budget_counts_failed_attempts_and_blocks_sixth_call():
+def test_query_budget_counts_failed_attempts_and_blocks_sixth_query():
     async def exercise():
         session = new_session()
         calls = []
@@ -256,10 +256,10 @@ def test_query_candidates_deduplication_and_changed_page():
         session = new_session()
 
         async def candidates():
-            return list(range(10))
+            return list(range(12))
 
         result = await session.execute(candidates, query=True)
-        assert result["data"] == list(range(5)) and session.round.results_per_query == [5]
+        assert result["data"] == list(range(10)) and session.round.results_per_query == [10]
         await read(session)
         assert (await read(session))["data"] == {"duplicate": True}
         await read(session, "更新后的正文")

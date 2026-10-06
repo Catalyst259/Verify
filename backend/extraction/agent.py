@@ -16,8 +16,8 @@ from .models import ClaimExtractionResult
 os.environ.setdefault("ANONYMIZED_TELEMETRY", "false")
 
 
-def load_config():
-    """从 backend 目录按本地、正式、示例顺序读取模型配置。"""
+def read_config():
+    """读取本地、正式或示例配置；启动和浏览器登录不要求模型密钥。"""
     directory = Path(__file__).resolve().parents[1]
     path = directory / "config.local.toml"
     if not path.exists():
@@ -25,7 +25,12 @@ def load_config():
     if not path.exists():
         path = directory / "config.example.toml"
     with path.open("rb") as file:
-        config = tomllib.load(file)
+        return tomllib.load(file)
+
+
+def load_config():
+    """读取配置并校验模型密钥，仅在需要调用模型时使用。"""
+    config = read_config()
     if not config["api_key"].strip():
         raise ModelNotConfigured("请先填写 backend/config.toml 中的 api_key、model 和 base_url")
     return config

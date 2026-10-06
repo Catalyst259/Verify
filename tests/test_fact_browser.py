@@ -28,7 +28,7 @@ def test_fact_search_reads_real_page_with_bounded_tools(monkeypatch, model, brok
     def candidates():
         visits.append("search")
         return "<html><body>" + "".join(
-            f'<a class="result__a" href="{base_url}/notice?id={i}">公园公告 {i}</a>' for i in range(8)
+            f'<a class="result__a" href="{base_url}/notice?id={i}">公园公告 {i}</a>' for i in range(12)
         ) + "</body></html>"
 
     @app.get("/notice", response_class=HTMLResponse)
@@ -96,7 +96,7 @@ def test_fact_search_reads_real_page_with_bounded_tools(monkeypatch, model, brok
     assert result.status == ("partial" if broken_output else "completed"), result.model_dump_json()
     assert len(calls) == 5 and len(queries) == 1
     assert visits == ["search", "notice"]
-    assert sessions[0].round.tool_calls == 2 and sessions[0].round.results_per_query == [5]
+    assert sessions[0].round.tool_calls == 2 and sessions[0].round.results_per_query == [10]
     finding = result.findings[0]
     assert finding.assessment.verdict == "SUPPORTED" and bool(finding.error) == broken_output
     assert finding.evidence[0].content == "停车场开放说明\n\n停车场对游客开放，夜间关闭。"

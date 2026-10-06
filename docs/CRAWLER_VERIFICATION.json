@@ -1,0 +1,111 @@
+{
+  "date": "2026-10-06",
+  "branch": "feat/xiaohongshu-crawler",
+  "baseline_commit": "55c22d0e39689fb88215ce62f118195302336098",
+  "local_automated_acceptance": "passed",
+  "environment": {
+    "os": "Windows",
+    "python": "3.12.13",
+    "playwright": "1.63.0",
+    "browser_use": "0.13.10",
+    "fastapi": "0.142.2",
+    "uvicorn": "0.54.0",
+    "pytest": "9.1.1",
+    "normal_crawler_browser": "system Microsoft Edge",
+    "synthetic_browser_tests": "system Google Chrome"
+  },
+  "checks": [
+    {
+      "name": "dependency consistency",
+      "command": ".venv/Scripts/python.exe -m pip check",
+      "status": "passed",
+      "log": "../handoff/online/pip-check.log"
+    },
+    {
+      "name": "complete backend tests",
+      "command": ".venv/Scripts/python.exe -m pytest -q --basetemp ../handoff/online/pytest-backend-final-1",
+      "passed": 158,
+      "skipped": 11,
+      "failed": 0,
+      "seconds": 9.73,
+      "log": "../handoff/online/backend-tests-final-1.log",
+      "boundary": "The eleven opt-in browser cases were run separately. Includes the new source, shared-budget and HTTP/API regressions; no real models."
+    },
+    {
+      "name": "complete local browser chain",
+      "command": ".venv/Scripts/python.exe -m pytest tests/test_browser.py tests/test_fact_browser.py tests/test_xiaohongshu_source_browser.py -q --basetemp ../handoff/online/pytest-browser-final-1",
+      "environment": {
+        "VERIFY_BROWSER_TESTS": "1",
+        "VERIFY_CHROMIUM": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+        "VERIFY_TEST_BROWSER_PATH": "C:/Program Files/Google/Chrome/Application/chrome.exe"
+      },
+      "passed": 11,
+      "failed": 0,
+      "seconds": 56.5,
+      "log": "../handoff/online/browser-tests-final-1.log",
+      "boundary": "Actual browser processes and local HTTP/API; synthetic pages and model protocol doubles. XHS page requests are intercepted, so these cases do not certify the live site."
+    },
+    {
+      "name": "real Xiaohongshu module",
+      "command": ".venv/Scripts/python.exe ../handoff/online/verify_live_source.py",
+      "started_at": "2026-10-06T08:27:33.291751+00:00",
+      "finished_at": "2026-10-06T08:28:32.773144+00:00",
+      "query": "上海公园",
+      "max_results": 10,
+      "returned_count": 10,
+      "seconds": 59.482,
+      "status": "passed",
+      "all_web": true,
+      "all_nonempty": true,
+      "all_clean_links": true,
+      "all_aware_retrieval_times": true,
+      "known_publication_count": 0,
+      "source_closed": true,
+      "real_model_called": false,
+      "record": "../handoff/online/live-source-result.json",
+      "boundary": "One live keyword and copied user session. Note bodies and signed URLs were not saved to the receipt. Publication times were unknown and remained null."
+    },
+    {
+      "name": "preserved original assets",
+      "original_source_hashes_matched": 12,
+      "archived_config_notes_database_hashes_matched": 3,
+      "preserved_note_records": 14,
+      "status": "passed",
+      "record": "../handoff/online/preservation-check.json"
+    },
+    {
+      "name": "running native backend",
+      "url": "http://127.0.0.1:8000/",
+      "frontend_http_status": 200,
+      "openapi_http_status": 200,
+      "invalid_request_http_status": 422,
+      "request_fields": ["target_place", "text", "link", "image"],
+      "workers": 1,
+      "reload": false,
+      "status": "passed",
+      "record": "../handoff/online/backend-startup.json"
+    }
+  ],
+  "covered": [
+    "Ten valid note bodies survive shared registration, then a web body is still readable.",
+    "Candidates are capped at ten for both sources, independently; no five-item merged truncation.",
+    "max_results supports integers one through ten and rejects out-of-range, boolean and fractional values.",
+    "Concurrent query result counters use distinct slots; per-request input exclusions and ledgers are isolated.",
+    "Shared twenty-call, five-query, fifteen-evidence budgets include failed operations and each note read.",
+    "Later crawler batches preserve one web read and one evidence slot; duplicates and stopped operations do not create evidence.",
+    "Original input IDs, equivalent link paths/default ports and final redirected web URLs are excluded.",
+    "Missing bodies, mismatched final identities, login walls and HTTP error documents are not evidence.",
+    "Partial evidence survives failures; webpage search and reading continue.",
+    "Lock waiting counts toward timeout; cancellation, page-creation failures, page-close failures and shutdown clean browser resources.",
+    "Actual action ledger remains authoritative for model references and returned evidence IDs.",
+    "Startup without a model key and separate login command remain available; GUI, Excel and offline JSONL runtime are absent."
+  ],
+  "limitations": [
+    "The preserved local model api_key is empty. Full real-model verification and judgment quality are not accepted by these tests.",
+    "Ten is a collection upper target, not a credibility guarantee; source independence and authority still require cross-checking.",
+    "A single successful live query does not certify other keywords, future site structure, permanent login validity or resistance to rate limits.",
+    "Short input URLs without an identifiable note ID and text-only copies cannot be linked reliably to the same original post using URL identity alone.",
+    "Private rollback archives, browser profiles, database, local config, raw notes and runtime logs are excluded from Git."
+  ],
+  "push_policy": "Only push the original-repository feature branch after local acceptance; preserve the commit and an external receipt if write permission is denied."
+}
