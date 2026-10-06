@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>验一下 · 旅行信息核验</title>
-  <link rel="stylesheet" href="/style.css">
-  <script src="/app.js" defer></script>
+  <link rel="stylesheet" href="/style.css?v=readable-results-20261006">
+  <script src="/app.js?v=readable-results-20261006" defer></script>
 </head>
 <body>
   <main>
@@ -14,7 +14,8 @@
     <form id="form">
       <fieldset id="fields">
         <label for="place">地点</label>
-        <input id="place" name="target_place" maxlength="100" placeholder="例如：上海迪士尼乐园" required>
+        <input id="place" name="target_place" maxlength="100" placeholder="例如：上海迪士尼乐园" aria-describedby="place-hint" required>
+        <small id="place-hint">地点仅用于限定核验范围。请同时提供文字、图片或链接中的至少一种材料。</small>
 
         <label for="images">图片</label>
         <div id="dropzone">
@@ -33,10 +34,14 @@
       </fieldset>
     </form>
     <p id="status" role="status" aria-live="polite"></p>
-    <section id="result" hidden>
+    <section id="result" tabindex="-1" hidden>
       <h2>核验结果</h2>
       <p>以下展示提取的主张和本次核验结果；流程完成不代表所有主张都真实。</p>
-      <pre id="claims"></pre>
+      <div id="findings"></div>
+      <details id="raw-result">
+        <summary>查看完整原始响应</summary>
+        <pre id="claims"></pre>
+      </details>
     </section>
   </main>
 </body>

@@ -104,9 +104,10 @@ def test_dimension_scores_reject_out_of_range_values(assessment, score):
 
 
 @pytest.mark.parametrize("change", [
-    {"round_number": 3}, {"tool_calls": 6}, {"tool_calls": 1, "queries": 2, "results_per_query": [0, 0]},
-    {"tool_calls": 1, "queries": 1, "results_per_query": [6]},
-    {"tool_calls": 1, "queries": 1}, {"new_evidence_count": 6}, {"tool_calls": -1},
+    {"round_number": 3}, {"tool_calls": 21}, {"tool_calls": 1, "queries": 2, "results_per_query": [0, 0]},
+    {"tool_calls": 6, "queries": 6, "results_per_query": [0] * 6},
+    {"tool_calls": 1, "queries": 1, "results_per_query": [11]},
+    {"tool_calls": 1, "queries": 1}, {"new_evidence_count": 16}, {"tool_calls": -1},
 ])
 def test_per_claim_round_budget_is_bounded(change):
     with pytest.raises(ValidationError):
@@ -119,7 +120,7 @@ def test_search_failure_preserves_material_and_empty_search_is_not_failure(plan,
     assert empty.error is None
     assert partial.evidence == [evidence]
     with pytest.raises(ValidationError):
-        SearchResult(claim_id=plan.claim_id, evidence=[evidence] * 6, error=None)
+        SearchResult(claim_id=plan.claim_id, evidence=[evidence] * 16, error=None)
 
 
 def test_second_round_preserves_first_round_references_and_changed_page(plan, evidence, assessment):

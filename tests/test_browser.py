@@ -82,8 +82,18 @@ def test_drag_upload_to_real_browser_agent(tmp_path, monkeypatch, with_links, mo
             }}}
         content = {"evaluation_previous_goal": "Success", "memory": "测试材料", "next_goal": "读取或完成",
                    "thinking": "Scripted test response; not a real model extraction.", "action": [action]}
+        if model == "deepseek-flash":
+            content["thinking"] += "\nRaw LF\rRaw CR\tRaw tab"
+        response_content = json.dumps(content)
+        if model == "deepseek-flash":
+            thinking = json.dumps(content["thinking"])
+            response_content = response_content.replace(
+                thinking, thinking.replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t"), 1)
+            with pytest.raises(json.JSONDecodeError):
+                json.loads(response_content)
+            assert json.loads(response_content, strict=False) == content
         return {"id": "test", "object": "chat.completion", "created": 0, "model": "gpt-4.1",
-                "choices": [{"index": 0, "message": {"role": "assistant", "content": json.dumps(content)},
+                "choices": [{"index": 0, "message": {"role": "assistant", "content": response_content},
                              "finish_reason": "stop"}]}
 
     async def skip_fact(*args):
@@ -119,13 +129,14 @@ def test_drag_upload_to_real_browser_agent(tmp_path, monkeypatch, with_links, mo
             page.locator("#submit").click()
             page.wait_for_function("!document.querySelector('#fields').disabled", timeout=120_000)
             assert page.locator("#result").is_visible(), page.locator("#status").inner_text()
-            output = json.loads(page.locator("#claims").inner_text())
+            output = json.loads(page.locator("#claims").text_content())
             assert output["context"]["target_place"] == "测试公园"
             assert output["run_id"]
             assert output["status"] == "partial"
             assert output["subgraph_results"]["fact"]["status"] == "skipped"
             assert set(output["subgraph_results"]) == {"fact", "route", "crowd", "experience"}
-            assert "核验未全部完成" in page.locator("#status").inner_text()
+            assert "本次未执行事实核验" in page.locator("#status").inner_text()
+            assert "路线、人流、体验核验尚未实现" in page.locator("#status").inner_text()
             assert output["claims"][0]["claim_id"] == "claim_001"
             assert requests[0]["link"] == links
             assert requests[0]["text"] == "工作日上午人少"

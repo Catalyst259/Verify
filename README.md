@@ -73,7 +73,45 @@ python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 
 后端重新读取图片原始 bytes，按顺序将 `file_code` 标签与多模态图片内容送入模型；根目录 `prompt.md` 原文追加到 Agent 系统提示词。使用 browser-use 的结构化输出并检查来源标识，统一顺序编号。禁用搜索工具，按提示词只读取提交链接及其必要页面内容。登录墙或不可访问页面仍可能需要用户补充截图。
 
+地点仅限定核验范围。前端要求文字、链接、图片至少提供一种，空材料会在发请求前提示；有材料但没有明确说法时仍可返回 `no_claims`。HTTP API 保留仅地点请求返回 `no_claims` 的兼容行为，不会凭地点名称主动补造主张。
+
+DeepSeek JSON mode 返回的字符串裸换行等控制字符会规范化后再做原有 Schema 校验；截断响应、无效 JSON 结构和错误字段仍拒绝。故障原因与验收见 [空材料与模型响应交接](docs/EMPTY_INPUT_AND_MODEL_JSON.md)。
+
 Fact 返回结构化判定、证据和缺口；报告、推荐、鉴权和任务队列尚未实现。前端展示完整运行 JSON 和执行状态；流程完成不代表主张为真。
+
+## 实时小红书来源
+
+后端通过已有 `EvidenceSource` 接口注册 `XiaohongshuSource`。每次 Fact `search_web(query)` 使用相同关键词并行执行网页搜索和小红书实时搜索，默认最多读取十条笔记原正文，直接登记 `WEB` 证据。网页候选继续由 `read_page` 读取；不需要 GUI、Excel或提前采集 JSONL。
+
+在 `backend/config.toml` 的 `[xiaohongshu]` 表设置 `max_results = 10`（整数 1–10）、`timeout_seconds = 120`、`pacing_seconds = 4`。默认使用系统 Edge 和专用 `backend/data/xiaohongshu-profile/`，可通过 `executable_path`、`profile_path` 指定路径。数量设置重启后端后生效。
+
+首次登录或登录失效时，先关闭使用该资料目录的后端，再运行：
+
+```powershell
+.\.venv\Scripts\python.exe -m backend.sources.xiaohongshu --login
+```
+
+在打开的浏览器中手动登录，按命令提示结束后启动后端。正常核验时浏览器隐藏；验证码、登录失效、限流或超时会明确记录，已取得材料保留，网页核验继续。Windows 使用单 worker、无 `--reload`。登录命令和启动页面不需要模型 Key，完整核验仍须配置模型。
+
+来源模块也可直接调用；以下实例使用同一后端配置，结束时释放浏览器：
+
+```python
+from pathlib import Path
+from backend.extraction.agent import read_config
+from backend.sources.xiaohongshu import XiaohongshuSource
+
+async def collect(query):
+    root = Path.cwd()
+    source = XiaohongshuSource.from_config(read_config(), root=root, data_directory=root / "backend/data")
+    try:
+        return await source.search(query)
+    finally:
+        await source.aclose()
+```
+
+正式 Fact 调用额外注入预算回调与输入排除，每次查询和正文读取分别计数，输入笔记不能成为自身的外部证据。十条是目标上限，实际数量受结果、预算、访问限制和时间影响；数量不直接提高可信度评分。
+
+所有累计改动、完整文件清单、最新验收与推送步骤见 [完整改动报告](docs/CRAWLER_CHANGE_REPORT.md)。启动、回退和测试结果见 [实时爬虫交接](docs/CRAWLER_HANDOFF.md)。[实施方案](docs/CRAWLER_INTEGRATION_PLAN.md) 明确要求本地验收通过后才能推送。
 
 ## 主图扩展
 
@@ -83,7 +121,7 @@ Fact 返回结构化判定、证据和缺口；报告、推荐、鉴权和任务
 
 地点解析、模型和搜索通过 `VerificationCapabilities` 注入 LangGraph runtime context，不写入 State。Fact 的 Plan、Validate 每轮各执行一次 OpenAI 兼容调用，复用 `load_config()` 读取模型配置；三个节点加载各自提示词，仅 Plan 额外加载 `fact-plan` skill。`fact_llm` 和 `fact_search` 可替换为测试依赖；`fact_search=None` 表示当前没有取证能力。
 
-Search 使用 browser-use Agent 和本地 Chromium，默认从 DuckDuckGo HTML 搜索候选，再读取页面可见正文。每条 Claim 最多两轮，每轮最多 5 次搜索/读取调用（失败也计数）、5 次查询、每次 5 个候选及 5 份新增证据；同时最多运行 3 个 Claim 的浏览器。证据 ID、抓取时间和预算由代码维护，Agent 输出须与实际工具记录一致。搜索页面被拦截或结构变化时返回取证错误；当前不支持登录、交互式翻页或图片正文提取。通用 `evidence_sources["web_search"]` 仍是供其他子图扩展的占位接口，Fact 不依赖它。
+Search 使用 browser-use Agent 和本地 Chromium，通过 DuckDuckGo HTML 搜索网页候选，并自动并行调用 `evidence_sources["xiaohongshu"]` 实时读取笔记。每条 Claim 最多两轮，每轮最多 20 次搜索/读取调用（失败也计数）、5 次查询、每次最多 10 个候选及 15 份新增证据。同时最多运行 3 个 Claim 的网页浏览器，小红书专用会话串行访问。证据 ID、抓取时间和预算由代码维护，Agent 输出须与实际工具记录一致。Fact 与外层子图默认超时 300 秒，小红书单次调用默认 120 秒且受剩余截止时间限制。通用 `evidence_sources["web_search"]` 仍为占位；实际网页搜索保留原实现，小红书通过已有来源注册表接入。网页读取不支持交互式登录或图片正文，小红书会话通过单独登录命令维护。
 
 正常缺证据的 `UNVERIFIED` 属于已完成判定；技术失败单独记录，补搜失败保留旧判定和已取得材料。内部截止时间早于主图硬超时，Search 为 Validate 预留时间，浏览器在结束或取消时清理。其他子图不受 Fact 失败影响。
 
@@ -102,7 +140,7 @@ Fact 的诊断以 JSON 字符串追加到 `subgraph_results.fact.notes`，同时
 pip install -r backend/requirements-dev.txt
 python -m pytest -q
 # 可选：运行真实浏览器链路测试，模型 HTTP 响应使用本地测试替身。
-VERIFY_BROWSER_TESTS=1 python -m pytest tests/test_browser.py tests/test_fact_browser.py -q
+VERIFY_BROWSER_TESTS=1 python -m pytest tests/test_browser.py tests/test_fact_browser.py tests/test_xiaohongshu_source_browser.py -q
 ```
 
 接口测试使用临时数据库，覆盖上传、落盘、重启恢复、图片顺序、四字段提交、错误状态，以及完整运行结果中的发现、证据和子图失败信息。浏览器测试覆盖拖拽两张图片、无链接及多个链接、页面实际读取、系统提示词与多模态消息传递、完整运行结果和状态展示；如使用非默认 Chromium 路径，可设置 `VERIFY_CHROMIUM`。测试中的替身输出仅用于验证链路，不代表真实模型提取效果；正式运行始终调用配置的模型。

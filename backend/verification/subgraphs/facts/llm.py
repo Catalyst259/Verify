@@ -5,6 +5,7 @@ import re
 from openai import AsyncOpenAI
 
 from backend.extraction.agent import load_config
+from backend.common.model_json import normalize_model_json
 
 
 async def complete(system_prompt: str, task: str) -> str:
@@ -26,4 +27,4 @@ async def complete(system_prompt: str, task: str) -> str:
     # 围栏内的语法、字段和跨字段约束仍由 Plan/Validate 校验。
     content = choice.message.content.strip()
     fenced = re.fullmatch(r"```(?:json)?[ \t]*\r?\n(.*?)\r?\n```", content, flags=re.DOTALL | re.IGNORECASE)
-    return fenced[1].strip() if fenced else content
+    return normalize_model_json(fenced[1].strip() if fenced else content)

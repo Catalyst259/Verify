@@ -18,17 +18,23 @@ from test_fact_workflow import assessment, inputs, make_plan, new_session
 pytestmark = pytest.mark.skipif(os.getenv("VERIFY_BROWSER_TESTS") != "1", reason="显式启用 Chromium 集成测试")
 
 
-@pytest.mark.parametrize("model,broken_output", [("gpt-4.1", False), ("deepseek-flash", False),
-                                               ("deepseek-flash", True)])
-def test_fact_search_reads_real_page_with_bounded_tools(monkeypatch, model, broken_output):
+@pytest.mark.parametrize("model,mode", [("gpt-4.1", "valid"), ("deepseek-flash", "valid"),
+                                      ("deepseek-flash", "malformed"),
+                                      ("deepseek-flash", "missing_action_once"),
+                                      ("deepseek-flash", "missing_action_always")])
+def test_fact_search_reads_real_page_with_bounded_tools(monkeypatch, model, mode):
+    from browser_use.agent.views import AgentOutput
+    from pydantic import ValidationError
+
     app = FastAPI()
     calls, visits, sessions, queries, browsers = [], [], [], [], []
+    literal_control_responses, missing_action_responses, finish_attempts = [], [], []
 
     @app.get("/search", response_class=HTMLResponse)
     def candidates():
         visits.append("search")
         return "<html><body>" + "".join(
-            f'<a class="result__a" href="{base_url}/notice?id={i}">公园公告 {i}</a>' for i in range(8)
+            f'<a class="result__a" href="{base_url}/notice?id={i}">公园公告 {i}</a>' for i in range(12)
         ) + "</body></html>"
 
     @app.get("/notice", response_class=HTMLResponse)
@@ -51,21 +57,47 @@ def test_fact_search_reads_real_page_with_bounded_tools(monkeypatch, model, brok
             content = [{"claim_id": "c0", "assessment": assessment(state["claim_states"]["c0"], sufficient=True)}]
         else:
             assert "# Fact Search" in system and "# PlanSkill" not in system
+            if model == "deepseek-flash":
+                instruction = body["messages"][-1]["content"]
+                assert "必须包含非空 action 数组" in instruction
+                assert "不得只有 thinking" in instruction
+                assert 'action: [{"done": {}}]' in instruction
             session = sessions[-1]
             if session.round.tool_calls == 0:
                 action = {"search_web": {"query": "公园停车场开放"}}
             elif session.round.tool_calls == 1:
                 action = {"read_page": {"url": base_url + "/notice", "source_type": "WEB"}}
             else:
-                action = {"done": {"success": True, "data": session.result().model_dump(mode="json")}}
+                finish_attempts.append(1)
+                action = {"done": {}}
             content = {"evaluation_previous_goal": "Success", "memory": "本地链路测试",
                        "next_goal": "搜索、读取或完成", "thinking": "Scripted response for integration test.",
                        "action": [action]}
-            if broken_output and session.round.tool_calls == 2:
+            if mode == "malformed" and session.round.tool_calls == 2:
                 content = "损坏的 Agent 输出"
+            elif session.round.tool_calls == 2 and (mode == "missing_action_always" or
+                                                    (mode == "missing_action_once" and not missing_action_responses)):
+                del content["action"]
+        serialized = json.dumps(content)
+        if model == "deepseek-flash" and isinstance(content, dict) and "action" in content:
+            thinking = "Scripted response\nSecond line\rThird line\tEnd."
+            content["thinking"] = thinking
+            encoded_thinking = json.dumps(thinking)
+            literal_thinking = encoded_thinking.replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t")
+            serialized = json.dumps(content).replace(encoded_thinking, literal_thinking, 1)
+            with pytest.raises(json.JSONDecodeError):
+                json.loads(serialized)
+            assert json.loads(serialized, strict=False)["thinking"] == thinking
+            literal_control_responses.append(1)
+        if isinstance(content, dict) and "action" not in content:
+            assert json.loads(serialized) == content
+            with pytest.raises(ValidationError) as error:
+                AgentOutput.model_validate_json(serialized)
+            assert [(item["loc"], item["type"]) for item in error.value.errors()] == [(("action",), "missing")]
+            missing_action_responses.append(serialized)
         return {"id": "test", "object": "chat.completion", "created": 0, "model": model,
                 "choices": [{"index": 0, "finish_reason": "stop",
-                             "message": {"role": "assistant", "content": json.dumps(content)}}]}
+                             "message": {"role": "assistant", "content": serialized}}]}
 
     original_page_data = search.page_data
 
@@ -93,12 +125,19 @@ def test_fact_search_reads_real_page_with_bounded_tools(monkeypatch, model, brok
             fact_search=tracked_search, subgraph_timeout_seconds=90,
         )))["result"]
 
-    assert result.status == ("partial" if broken_output else "completed"), result.model_dump_json()
-    assert len(calls) == 5 and len(queries) == 1
+    failed = mode in {"malformed", "missing_action_always"}
+    assert result.status == ("partial" if failed else "completed"), result.model_dump_json()
+    assert len(calls) == (5 if mode == "valid" else 6) and len(queries) == 1
+    assert len(finish_attempts) == (1 if mode == "valid" else 2)
+    assert len(missing_action_responses) == {"missing_action_once": 1, "missing_action_always": 2}.get(mode, 0)
+    expected_controls = (2 if failed else 3) if model == "deepseek-flash" else 0
+    assert len(literal_control_responses) == expected_controls
     assert visits == ["search", "notice"]
-    assert sessions[0].round.tool_calls == 2 and sessions[0].round.results_per_query == [5]
+    assert sessions[0].round.tool_calls == 2 and sessions[0].round.results_per_query == [10]
+    assert sessions[0].round.queries == 1 and sessions[0].round.new_evidence_count == 1
     finding = result.findings[0]
-    assert finding.assessment.verdict == "SUPPORTED" and bool(finding.error) == broken_output
+    assert finding.assessment.verdict == "SUPPORTED" and bool(finding.error) == failed
+    assert len(finding.evidence) == 1
     assert finding.evidence[0].content == "停车场开放说明\n\n停车场对游客开放，夜间关闭。"
     assert finding.evidence[0].model_dump(mode="json")["published_at"] == "2026-10-05"
     assert finding.assessment.supporting_evidence == [finding.evidence[0].evidence_id]

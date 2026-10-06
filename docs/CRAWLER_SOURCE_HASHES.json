@@ -1,0 +1,9 @@
+{
+  "original_directory": "../新华社爬虫",
+  "source_file": "crawler.py",
+  "sha256": "41C6E470BEEED2DE7D4E43851BF9AAABB51F5B39CC2D8AF0E8B8C3B33FA726A6",
+  "adapted_parts": ["CARDS_JS", "DETAIL_JS", "GUARD_JS", "public note identity", "keyword search identity", "manual login and access restriction boundaries"],
+  "adaptation": "async backend source; no GUI, Excel, durable JSONL history or stale-record skipping",
+  "original_source_modified": false,
+  "raw_notes_or_browser_profile_committed": false
+}

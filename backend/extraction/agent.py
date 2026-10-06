@@ -8,6 +8,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from backend.common.errors import ExtractionFailed, ModelNotConfigured
+from backend.common.model_json import normalize_model_json
 from backend.storage.models import StoredImage
 
 from .models import ClaimExtractionResult
@@ -16,8 +17,8 @@ from .models import ClaimExtractionResult
 os.environ.setdefault("ANONYMIZED_TELEMETRY", "false")
 
 
-def load_config():
-    """从 backend 目录按本地、正式、示例顺序读取模型配置。"""
+def read_config():
+    """读取本地、正式或示例配置；启动和浏览器登录不要求模型密钥。"""
     directory = Path(__file__).resolve().parents[1]
     path = directory / "config.local.toml"
     if not path.exists():
@@ -25,7 +26,12 @@ def load_config():
     if not path.exists():
         path = directory / "config.example.toml"
     with path.open("rb") as file:
-        config = tomllib.load(file)
+        return tomllib.load(file)
+
+
+def load_config():
+    """读取配置并校验模型密钥，仅在需要调用模型时使用。"""
+    config = read_config()
     if not config["api_key"].strip():
         raise ModelNotConfigured("请先填写 backend/config.toml 中的 api_key、model 和 base_url")
     return config
@@ -69,8 +75,11 @@ async def extract_claims(
                         max_tokens=8192,
                         extra_body={"thinking": {"type": "disabled"}},
                     )
+                choice = response.choices[0]
+                if choice.finish_reason != "stop" or not choice.message.content:
+                    raise ValueError("模型未返回完整的 JSON 响应")
                 return ChatInvokeCompletion(
-                    completion=output_format.model_validate_json(response.choices[0].message.content or ""),
+                    completion=output_format.model_validate_json(normalize_model_json(choice.message.content)),
                     usage=self._get_usage(response),
                 )
             return await super().ainvoke(messages, output_format=output_format, **kwargs)

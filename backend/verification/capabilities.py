@@ -39,7 +39,8 @@ class VerificationCapabilities:
     evidence_sources: Mapping[str, EvidenceSource] = field(
         default_factory=lambda: {"web_search": WebSearchSource()}
     )
-    subgraph_timeout_seconds: float = 180
+    subgraph_timeout_seconds: float = 300
     fact_llm: Callable[[str, str], Awaitable[str]] = call_fact_llm
     # None 表示本次运行没有取证能力；仍可完成规划和缺证据判定。
     fact_search: Callable[["SearchSession", str, str], Awaitable[str]] | None = run_fact_search
+    input_urls: tuple[str, ...] = ()

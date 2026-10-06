@@ -1,4 +1,5 @@
 from collections.abc import Awaitable, Callable, Mapping
+from dataclasses import replace
 
 from backend.extraction.models import ClaimExtractionResult
 from backend.extraction.service import ClaimExtractionService
@@ -23,5 +24,6 @@ class VerificationService:
 
     async def run(self, request: VerificationInput) -> VerificationRun:
         """将业务输入交给主图，解包并返回完整运行结果。"""
-        output = await self.graph.ainvoke({"request": request}, context=self.capabilities)
+        capabilities = replace(self.capabilities, input_urls=tuple(request.link))
+        output = await self.graph.ainvoke({"request": request}, context=capabilities)
         return output["result"]

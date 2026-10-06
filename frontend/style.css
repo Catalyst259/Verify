@@ -24,4 +24,18 @@ button:disabled { opacity: .55; cursor: wait; }
 #uploads button { padding: 5px 9px; }
 .error { color: #b42318; }
 pre { padding: 16px; background: #f4f7fb; border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
+#result { scroll-margin-top: 20px; }
+.claim-result { margin: 20px 0; padding: 20px; border: 1px solid #c8d2e0; border-radius: 10px; overflow-wrap: anywhere; }
+.claim-result h3 { margin: 0 0 12px; font-size: 18px; }
+.claim-result h4 { margin-bottom: 6px; }
+.verdict { font-size: 22px; font-weight: 700; color: #627086; }
+.verdict[data-verdict="SUPPORTED"] { color: #187044; }
+.verdict[data-verdict="CONTRADICTED"] { color: #b42318; }
+.verdict[data-verdict="CONDITIONAL"] { color: #8b5b00; }
+.reason { color: #1b2a41; white-space: pre-wrap; }
+.scope, .evidence-time { font-size: 13px; white-space: pre-wrap; }
+.evidence { margin: 12px 0; padding: 12px; background: #f4f7fb; border-radius: 8px; }
+summary { cursor: pointer; }
+.evidence a { display: inline-block; margin-top: 8px; color: #1265db; }
+.evidence-content { white-space: pre-wrap; color: #1b2a41; }
 @media (max-width: 760px) { main { margin: 0; padding: 20px; border-radius: 0; min-height: 100vh; } }

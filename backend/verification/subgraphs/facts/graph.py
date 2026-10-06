@@ -101,7 +101,9 @@ async def search(state: FactState, runtime: Runtime[VerificationCapabilities]) -
 
     async def search_claim(claim_id: str):
         old = state["claim_states"][claim_id]
-        session = SearchSession(old, deadline, checked_at=state["context"].checked_at)
+        session = SearchSession(old, deadline, checked_at=state["context"].checked_at,
+                                input_urls=runtime.context.input_urls,
+                                evidence_sources=runtime.context.evidence_sources)
         error = None
         queued_at = perf_counter()
         async with semaphore:

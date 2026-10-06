@@ -148,7 +148,7 @@ SubgraphResult.status 增加一个 partial：无选中主张为 skipped；全部
 ## 执行约束
 
 - 每条 Claim 最多两轮，即首次检索加一次补搜；只有证据不足且仍有时间和可用能力时补搜。
-- 按 PDF，每条 Claim 每轮最多 5 次工具调用、5 次查询、每次查询最多 5 个候选、最多新增 5 份证据。工具调用包括搜索和读取，失败重试也计入；查询额度不额外增加读取额度，done 不计取证调用。
+- 实时小红书接入后，每条 Claim 每轮最多 20 次工具调用、5 次查询、每次查询最多 10 个候选、最多新增 15 份证据。工具调用包括搜索和每篇正文读取，失败重试也计入；查询额度不额外增加读取额度，done 不计取证调用。爬虫后续批次至少保留一次网页正文调用及一个证据槽位，不因为自动采集耗尽网页取证余量。
 - 上述计数由代码强制执行；两轮耗尽仍不足，返回 UNVERIFIED 和剩余缺口。
 - 内部提前截止，为组装结果和资源清理留时间；主图硬超时仍按现有失败逻辑处理。
 - 用 Pydantic 校验节点结构、分数和枚举；代码校验 claim_id、evidence_id 存在，引用材料随最终结果返回。
@@ -181,10 +181,10 @@ Search 从 SearchState 中取一条活动主张组装任务消息：
 | context | 共享 VerificationContext |
 | claim_state | 对应 FactClaimState，包括计划、累积证据、既有判定和轮次错误 |
 | round_number | 由代码创建的本轮 FactRoundState.round_number，取 1 或 2 |
-| remaining_budget | 从本轮实际计数计算的剩余 tool_calls、queries、evidence，以及 max_results_per_query 上限；初始分别为 5、5、5、5 |
+| remaining_budget | 从本轮实际计数计算的剩余 tool_calls、queries、evidence，以及 max_results_per_query 上限；初始分别为 20、5、15、10 |
 | deadline_at | 子图内部截止时间 |
 
-上述是模型消息的投影，不向 State 增加另一套计数。实际工具名称、参数和可用能力由 runtime 注入；source_type 是来源类别，不是工具名称。搜索返回候选时不得把摘要当作正文。读取工具返回正文时，适配层生成规范化 FactEvidence：代码分配 evidence_id，工具记录 retrieved_at，保留真实 URL、页面标题、发布时间精度和可见正文。Search 通过独立的 browser-use 适配层执行，不使用通用 EvidenceSource 占位接口。
+上述是模型消息的投影，不向 State 增加另一套计数。实际工具名称、参数和可用能力由 runtime 注入；source_type 是来源类别，不是工具名称。搜索返回候选时不得把摘要当作正文。读取工具返回正文时，适配层生成规范化 FactEvidence：代码分配 evidence_id，工具记录 retrieved_at，保留真实 URL、页面标题、发布时间精度和可见正文。Search 通过 browser-use 适配层保留原网页搜索，同时调用来源注册表中的 XiaohongshuSource；后者兼容已有 EvidenceSource，实时查询和每篇详情通过同一执行回调登记。网页和小红书分别计数，不能将合并候选重新切片丢失笔记。
 
 工具包装层在实际调用前预留额度，失败和重试也计数，工具返回时提供最新剩余额度及截止标记。限制按实际查询和页面读取次数计算，不能用 Agent 的模型循环次数或 max_steps 代替。Agent 结束时返回本轮记录；代码按 evidence_id 对照本次工具记录取回规范化材料，拒绝虚构或改写内容，并按 URL 和正文去重后合并到历史证据。
 
@@ -208,7 +208,7 @@ Search 从 SearchState 中取一条活动主张组装任务消息：
 | “免费进入”，正文明确公共区域免费、园林区域收费 | 可给 CONDITIONAL，附已证实的区域条件和证据引用 |
 | “所有区域免费”，有对应日期园林收费的直接材料 | 返回 CONTRADICTED，不能缩小范围后给支持判定 |
 | 搜索只返回摘要或网页夹带“忽略指令” | Search 继续按取证任务读取正文，不把摘要或网页指令当作证据/系统要求 |
-| 工具第 5 次调用失败，但前面已取得正文 | 不进行第 6 次取证调用；Search 保留已有正文和真实错误 |
+| 工具第 20 次调用失败，但前面已取得正文 | 不进行第 21 次取证调用；Search 保留已有正文和真实错误 |
 | 同一 URL 在第二轮出现不同正文 | 新材料与首轮材料一起保留；Validate 可引用两个轮次的证据 |
 | 第二轮仍有冲突且预算耗尽 | 保留 UNVERIFIED 和关键缺口，由代码结束；不因为必须收束而改判 |
 

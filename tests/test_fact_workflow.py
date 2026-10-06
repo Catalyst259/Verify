@@ -77,7 +77,7 @@ def test_two_rounds_preserve_completed_claims_evidence_and_inject_instructions()
         data = json.loads(task)
         assert prompt.startswith("# Fact Search") and "# PlanSkill" not in prompt
         assert data["context"]["target_place"] == "公园"
-        assert data["remaining_budget"]["tool_calls"] == 5
+        assert data["remaining_budget"]["tool_calls"] == 20
         searches.append((session.claim_id, data["round_number"]))
         await read(session, f"第 {data['round_number']} 轮的原文")
         return session.result().model_dump_json()
@@ -233,7 +233,7 @@ def new_session():
                          datetime.now(timezone.utc) + timedelta(seconds=10))
 
 
-def test_tool_budget_counts_failed_attempts_and_blocks_sixth_call():
+def test_query_budget_counts_failed_attempts_and_blocks_sixth_query():
     async def exercise():
         session = new_session()
         calls = []
@@ -256,10 +256,10 @@ def test_query_candidates_deduplication_and_changed_page():
         session = new_session()
 
         async def candidates():
-            return list(range(10))
+            return list(range(12))
 
         result = await session.execute(candidates, query=True)
-        assert result["data"] == list(range(5)) and session.round.results_per_query == [5]
+        assert result["data"] == list(range(10)) and session.round.results_per_query == [10]
         await read(session)
         assert (await read(session))["data"] == {"duplicate": True}
         await read(session, "更新后的正文")
@@ -275,6 +275,9 @@ def test_query_candidates_deduplication_and_changed_page():
 def test_browser_tools_expose_only_metered_search_read_and_done():
     tools = create_tools(new_session(), object())
     assert set(tools.registry.registry.actions) == {"search_web", "read_page", "done"}
+    assert tools.get_output_model() is None
+    done_schema = tools.registry.registry.actions["done"].param_model.model_json_schema()
+    assert done_schema["properties"] == {} and done_schema["additionalProperties"] is False
 
 
 @pytest.mark.parametrize("finish_reason", ["stop", "length"])
@@ -353,5 +356,5 @@ def test_fenced_model_response_through_plan_and_validate(monkeypatch, invalid):
         assert result.findings[0].assessment.verdict == "SUPPORTED"
         assert calls == ["plan", "validate"] and searches == ["c0"]
     else:
-        assert result.status == "failed" and "Plan: ValidationError:" in result.error
+        assert result.status == "failed" and result.error.startswith(("Plan: ValueError:", "Plan: ValidationError:"))
         assert calls == ["plan"] and not searches

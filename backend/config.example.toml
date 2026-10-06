@@ -9,3 +9,12 @@ browser_executable_path = ""
 # DeepSeek Flash 也支持：
 # base_url = "https://api.deepseek.com"
 # model = "deepseek-flash"
+
+# 每次网页查询自动并行搜索小红书；需要先用 --login 命令手动登录。
+[xiaohongshu]
+max_results = 10
+timeout_seconds = 120
+pacing_seconds = 4
+# 默认使用系统 Edge 和 backend/data/xiaohongshu-profile。
+# executable_path = "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"
+# profile_path = "backend/data/xiaohongshu-profile"
