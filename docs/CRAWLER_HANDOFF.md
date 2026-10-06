@@ -75,3 +75,5 @@ $env:VERIFY_CHROMIUM = "C:\Program Files\Google\Chrome\Application\chrome.exe"
 所有工作需留档；最终本地提交、启动进程、测试日志与推送结果记录在仓库外 handoff/online 和 CRAWLER_ONLINE_PUSH_RECEIPT.md。后续 agent 先重新检查 Git、上游及进程，再继续工作。推送必须晚于本地验收，权限补齐前不改为 Fork 或推送旧离线提交。
 
 后续空材料输入和真实模型 Search 中断排查见 [EMPTY_INPUT_AND_MODEL_JSON.md](EMPTY_INPUT_AND_MODEL_JSON.md)。它记录同日追加修复与验证；上面的158项和11项是首次爬虫集成的历史验收，后续完整测试数量以追加记录为准。默认 route、crowd、experience 仍未实现，不能把其 partial 状态归因于爬虫没有运行。
+
+后续搜索导航修复见 [CRAWLER_NAVIGATION_FIX.md](CRAWLER_NAVIGATION_FIX.md)：来源已恢复原爬虫的主页初始化和限制检查，再进入关键词搜索；冷搜索超时与同会话预热后十条正文分别实测留档。导航异常只导出有限脱敏元数据，主页卡片不作为证据、预算不变。前端分别解释子图执行状态和证据是否充分；本轮197项后端及相关浏览器检查通过，真实模型API结果以本机追加回执为准。

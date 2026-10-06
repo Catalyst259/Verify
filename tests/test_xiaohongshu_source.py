@@ -161,7 +161,8 @@ def test_standalone_reads_ten_real_bodies_without_interaction_counts(tmp_path, m
         assert all(item.source == "小红书 · 公开作者" and item.published_at is None for item in result)
         assert len({item.evidence_id for item in result}) == 10
         assert all("PRIVATE" not in item.model_dump_json() for item in result)
-        assert len(contexts[0].visits) == 11 and all(page.closed for page in contexts[0].pages)
+        assert contexts[0].visits[:2] == [xhs.HOME, "https://www.xiaohongshu.com/search_result?keyword=%E5%85%AC%E5%9B%AD+%E5%92%96%E5%95%A1"]
+        assert len(contexts[0].visits) == 12 and all(page.closed for page in contexts[0].pages)
         await source.aclose()
         assert contexts[0].closed and drivers[0].stopped
     asyncio.run(scenario())

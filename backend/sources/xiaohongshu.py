@@ -9,10 +9,13 @@ import argparse
 import asyncio
 from collections.abc import Awaitable, Callable
 from datetime import date, datetime, timezone
+import json
+import logging
 import math
 from pathlib import Path
 import re
 import sys
+from time import perf_counter
 from urllib.parse import parse_qs, urlencode, urlsplit
 from uuid import uuid4
 import warnings
@@ -22,6 +25,15 @@ from backend.verification.subgraphs.facts.model import FactEvidence
 
 
 HOME = "https://www.xiaohongshu.com/explore"
+logger = logging.getLogger(__name__)
+_NETWORK_ERRORS = {
+    "net::ERR_ABORTED", "net::ERR_TIMED_OUT", "net::ERR_NETWORK_CHANGED",
+    "net::ERR_NAME_NOT_RESOLVED", "net::ERR_INTERNET_DISCONNECTED",
+    "net::ERR_CONNECTION_CLOSED", "net::ERR_CONNECTION_RESET", "net::ERR_CONNECTION_REFUSED",
+    "net::ERR_PROXY_CONNECTION_FAILED", "net::ERR_TUNNEL_CONNECTION_FAILED",
+    "net::ERR_SSL_PROTOCOL_ERROR", "net::ERR_CERT_AUTHORITY_INVALID", "net::ERR_CERT_DATE_INVALID",
+    "net::ERR_BLOCKED_BY_CLIENT", "net::ERR_HTTP_RESPONSE_CODE_FAILURE", "net::ERR_EMPTY_RESPONSE",
+}
 _NOTE_PATH = re.compile(r"^/(?:explore|search_result|discovery/item)/([0-9a-fA-F]{24})/?$")
 Execute = Callable[..., Awaitable[dict]]
 
@@ -192,13 +204,30 @@ class XiaohongshuSource:
             raise
 
     async def _goto(self, page, url: str):
+        from playwright.async_api import TimeoutError as NavigationTimeout
+
+        started = perf_counter()
         try:
             response = await page.goto(url, wait_until="domcontentloaded", timeout=25000)
         except asyncio.CancelledError:
             raise
-        except Exception:
-            # Navigation exceptions may contain signed links; never forward them.
-            raise XiaohongshuError("小红书网页导航失败或超时") from None
+        except Exception as error:
+            # Browser exceptions may contain signed links; export only fixed error metadata.
+            first_line = str(error).splitlines()[0] if str(error) else ""
+            match = re.match(r"^Page\.goto:\s+(net::ERR_[A-Z_]+)\s+at\s+https?://", first_line)
+            code = match[1] if match and match[1] in _NETWORK_ERRORS else None
+            expired = isinstance(error, (NavigationTimeout, TimeoutError))
+            logger.warning("xiaohongshu_navigation_failed %s", json.dumps({
+                "host": urlsplit(url).hostname,
+                "page": "detail" if canonical_note_id(url) else "search" if urlsplit(url).path.rstrip("/") == "/search_result" else "home",
+                "error_type": type(error).__name__, "category": "timeout" if expired else "navigation",
+                "network_error": code,
+                "elapsed_ms": round((perf_counter() - started) * 1000, 3),
+            }))
+            if expired:
+                raise XiaohongshuError("小红书网页导航超时：25秒内未完成 DOM 加载") from None
+            detail = code or type(error).__name__
+            raise XiaohongshuError(f"小红书网页导航失败（{detail}）") from None
         if response is not None and response.status in (401, 403, 429):
             raise XiaohongshuAccessRestricted(f"小红书网页限制访问（HTTP {response.status}）")
         if response is not None and response.status >= 400:
@@ -229,6 +258,10 @@ class XiaohongshuSource:
             return False
 
     async def _candidates(self, page, query: str, excluded: frozenset[str], private: dict) -> list[dict]:
+        # Initialize the logged-in site before opening its search route. A cold
+        # search tab can hang before DOM readiness even when the profile is valid.
+        await self._goto(page, HOME)
+        await self._guard(page)
         await self._goto(page, "https://www.xiaohongshu.com/search_result?" + urlencode({"keyword": query}))
         for _ in range(20):
             await self._guard(page)

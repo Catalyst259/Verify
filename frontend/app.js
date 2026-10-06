@@ -71,6 +71,50 @@ for (const event of ['dragenter', 'dragover', 'dragleave', 'drop']) {
   });
 }
 
+function verificationStatus(data) {
+  if (data.status === 'no_claims') {
+    return { message: '材料中未提取到明确主张，未进行核验。请补充包含具体说法的文字、图片或链接。', attention: false };
+  }
+  const results = data.subgraph_results || {};
+  const labels = { fact: '事实', route: '路线', crowd: '人流', experience: '体验' };
+  const names = state => Object.entries(results)
+    .filter(([, result]) => result.status === state)
+    .map(([name]) => labels[name] || name).join('、');
+  const completed = names('completed');
+  const partial = names('partial');
+  const failed = names('failed');
+  const skipped = names('skipped');
+  const unavailable = names('not_implemented');
+  const messages = [`已提取 ${data.claims.length} 条主张。`];
+  if (completed) messages.push(`${completed}核验流程已完成。`);
+  if (partial) messages.push(`${partial}核验仅完成一部分，请查看已返回的结果和未完成项。`);
+  if (failed) messages.push(`${failed}核验失败，已保留已有材料，请查看错误说明。`);
+  if (skipped) messages.push(`本次未执行${skipped}核验，请查看各项结果中的说明。`);
+  if (unavailable) messages.push(`${unavailable}核验尚未实现，本次未核验这些内容。`);
+  if (messages.length === 1) {
+    const fallback = {
+      not_implemented: '本次核验功能尚未实现，尚未对这些说法作出核验结论。',
+      completed: '核验流程已完成。',
+      partial: '仍有核验步骤未完成，请查看各项结果。',
+      failed: '核验失败，已保留提取的主张，请查看错误说明。',
+    };
+    messages.push(fallback[data.status] || '核验流程已结束，请查看结果。');
+  }
+  // 执行完成与主张是否得到证据支持是两种结果，证据不足不能显示为核验失败。
+  const findings = results.fact?.findings || [];
+  const insufficient = new Set(findings.filter(item => item.assessment?.evidence_sufficient === false)
+    .map(item => item.claim_id));
+  const unverified = new Set(findings.filter(item => item.assessment?.verdict === 'UNVERIFIED' &&
+    item.assessment.evidence_sufficient !== false).map(item => item.claim_id));
+  if (insufficient.size) messages.push(`有 ${insufficient.size} 条事实主张证据不足，未能确认；这不表示这些说法是假的。`);
+  if (unverified.size) messages.push(`有 ${unverified.size} 条事实主张未能确认，请查看判定理由。`);
+  return {
+    message: messages.join(''),
+    attention: Boolean(partial || failed || insufficient.size || unverified.size ||
+      data.status === 'failed' || (data.status === 'partial' && !Object.keys(results).length)),
+  };
+}
+
 form.addEventListener('submit', async event => {
   event.preventDefault();
   if (evaluating || uploads.some(item => item.pending || item.error)) return;
@@ -100,15 +144,9 @@ form.addEventListener('submit', async event => {
     });
     document.querySelector('#claims').textContent = JSON.stringify(data, null, 2);
     result.hidden = false;
-    const messages = {
-      no_claims: '材料中未提取到明确主张，未进行核验。请补充包含具体说法的文字、图片或链接。',
-      not_implemented: `已提取 ${data.claims.length} 条主张，核验功能尚未实现。`,
-      completed: `核验流程已完成，共 ${data.claims.length} 条主张。`,
-      partial: '核验未全部完成，请查看各项结果。',
-      failed: '核验失败，已保留提取的主张，请查看结果。',
-    };
-    status.className = ['partial', 'failed'].includes(data.status) ? 'error' : '';
-    status.textContent = messages[data.status] || '核验流程已结束，请查看结果。';
+    const summary = verificationStatus(data);
+    status.className = summary.attention ? 'error' : '';
+    status.textContent = summary.message;
   } catch (error) {
     status.className = 'error';
     status.textContent = error.message;

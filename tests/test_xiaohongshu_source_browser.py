@@ -1,7 +1,7 @@
 """System Chrome + intercepted synthetic pages; no real XHS account or public HTTP."""
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import os
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -9,14 +9,17 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 
 from backend.sources.xiaohongshu import (
-    XiaohongshuError, XiaohongshuLoginRequired, XiaohongshuSource, canonical_note_id,
+    HOME, XiaohongshuError, XiaohongshuLoginRequired, XiaohongshuSource, canonical_note_id,
 )
-from backend.verification.subgraphs.facts.model import FactEvidence
+from backend.verification.subgraphs.facts.model import FactEvidence, FactPlan
+from backend.verification.subgraphs.facts.search import SearchSession
+from backend.verification.subgraphs.facts.state import FactClaimState
 
 
 pytestmark = pytest.mark.skipif(os.getenv("VERIFY_BROWSER_TESTS") != "1",
                               reason="显式启用真实系统浏览器与合成页面验证")
 CHROME = os.getenv("VERIFY_TEST_BROWSER_PATH", r"C:\Program Files\Google\Chrome\Application\chrome.exe")
+HOME_NOTE_ID = f"{99:024x}"
 
 
 def detail_html(identity, *, empty=False):
@@ -49,6 +52,12 @@ async def intercepted_source(tmp_path, monkeypatch, *, visits, route_detail=None
             await route.abort()
             return
         visits.append(url.path)
+        if url.path == urlsplit(HOME).path:
+            await route.fulfill(status=200, content_type="text/html; charset=utf-8", body=(
+                '<html><body><section class="note-item">'
+                f'<a class="cover" href="/explore/{HOME_NOTE_ID}?xsec_token=PRIVATE">主页卡片</a>'
+                '<span class="title">主页材料不可当作搜索结果</span></section></body></html>'))
+            return
         if url.path == "/search_result":
             query = parse_qs(url.query).get("keyword", [""])[0]
             if query == "登录墙":
@@ -106,7 +115,9 @@ def test_live_browser_reads_ten_visible_bodies_with_registered_time_and_no_token
                                           excluded_ids=frozenset((f"{1:024x}",)))
             assert len(results) == 10 and results == ledger
             assert calls == [True] + [False] * 10
-            assert len(visits) == 11 and all(f"/{1:024x}" not in path for path in visits)
+            assert visits[:2] == [urlsplit(HOME).path, "/search_result"]
+            assert len(visits) == 12 and all(f"/{1:024x}" not in path for path in visits)
+            assert all(canonical_note_id(item.url) != HOME_NOTE_ID for item in results)
             assert all(item.source == "小红书 · 合成作者" and item.source_type == "WEB" for item in results)
             assert all(item.content.startswith("合成详情标题\n\n真实 DOM 原文") for item in results)
             assert all(item.published_at.isoformat() == "2026-10-05" for item in results)
@@ -119,6 +130,42 @@ def test_live_browser_reads_ten_visible_bodies_with_registered_time_and_no_token
         finally:
             await source.aclose()
         assert source._playwright is None and source._context is None
+    asyncio.run(scenario())
+
+
+def test_real_browser_warm_home_and_ten_notes_leave_web_budget(tmp_path, monkeypatch):
+    async def scenario():
+        visits = []
+        source = await intercepted_source(tmp_path, monkeypatch, visits=visits)
+        plan = FactPlan(claim_id="c0", fact_type="FACILITY", target="合成公园", time_scope="当前",
+                        questions=["停车场是否开放？"], evidence_strategy=[
+                            {"priority": 1, "source_type": "WEB", "purpose": "核对开放状态"}])
+        session = SearchSession(FactClaimState(plan=plan), datetime.now(timezone.utc) + timedelta(seconds=60))
+        try:
+            results = await source.search("合成公园", execute=session.execute, deadline_at=session.deadline_at)
+            assert len(results) == 10 and results == session.evidence
+            assert visits[:2] == [urlsplit(HOME).path, "/search_result"] and len(visits) == 12
+            assert all(canonical_note_id(item.url) != HOME_NOTE_ID for item in results)
+            assert session.round.queries == 1 and session.round.tool_calls == 11
+
+            async def web_candidates():
+                return [{"title": "合成网页", "url": "https://example.test/notice"}]
+
+            async def web_body():
+                return {"source": "合成网页", "content": "本地测试网页正文：停车场开放。",
+                        "url": "https://example.test/notice", "source_type": "WEB"}
+
+            candidates = await session.execute(web_candidates, query=True)
+            web = await session.execute(web_body)
+            assert candidates["data"] == [{"title": "合成网页", "url": "https://example.test/notice"}]
+            assert web["data"]["content"] == "本地测试网页正文：停车场开放。"
+            assert session.round.queries == 2 and session.round.tool_calls == 13
+            assert session.round.results_per_query == [10, 1] and session.round.new_evidence_count == 11
+            assert len(session.evidence) == 11 and session.evidence[:-1] == results
+            assert len({item.evidence_id for item in session.evidence}) == 11
+            assert session.evidence[-1].source_type == "WEB" and session.result().error is None
+        finally:
+            await source.aclose()
     asyncio.run(scenario())
 
 

@@ -135,7 +135,8 @@ def test_drag_upload_to_real_browser_agent(tmp_path, monkeypatch, with_links, mo
             assert output["status"] == "partial"
             assert output["subgraph_results"]["fact"]["status"] == "skipped"
             assert set(output["subgraph_results"]) == {"fact", "route", "crowd", "experience"}
-            assert "核验未全部完成" in page.locator("#status").inner_text()
+            assert "本次未执行事实核验" in page.locator("#status").inner_text()
+            assert "路线、人流、体验核验尚未实现" in page.locator("#status").inner_text()
             assert output["claims"][0]["claim_id"] == "claim_001"
             assert requests[0]["link"] == links
             assert requests[0]["text"] == "工作日上午人少"
