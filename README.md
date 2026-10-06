@@ -111,7 +111,7 @@ async def collect(query):
 
 正式 Fact 调用额外注入预算回调与输入排除，每次查询和正文读取分别计数，输入笔记不能成为自身的外部证据。十条是目标上限，实际数量受结果、预算、访问限制和时间影响；数量不直接提高可信度评分。
 
-启动、回退和测试结果见 [实时爬虫交接](docs/CRAWLER_HANDOFF.md)。[实施方案](docs/CRAWLER_INTEGRATION_PLAN.md) 明确要求本地验收通过后才能推送。
+所有累计改动、完整文件清单、最新验收与推送步骤见 [完整改动报告](docs/CRAWLER_CHANGE_REPORT.md)。启动、回退和测试结果见 [实时爬虫交接](docs/CRAWLER_HANDOFF.md)。[实施方案](docs/CRAWLER_INTEGRATION_PLAN.md) 明确要求本地验收通过后才能推送。
 
 ## 主图扩展
 
