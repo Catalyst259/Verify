@@ -131,7 +131,7 @@ def test_frontend_explains_execution_and_evidence_separately(browser, output, ex
             assert all(text not in message for text in absent), message
             assert (page.locator("#status").get_attribute("class") == "error") == attention
             # 展示说明不改变后端的 partial/not_implemented/UNVERIFIED 或材料内容。
-            assert json.loads(page.locator("#claims").inner_text()) == output
+            assert json.loads(page.locator("#claims").text_content()) == output
             assert submissions == [{"target_place": "测试公园", "text": "停车场开放", "link": [], "image": []}]
             assert not errors
         finally:

@@ -115,6 +115,110 @@ function verificationStatus(data) {
   };
 }
 
+// 来源原文和模型理由均作为文本展示，不能作为 HTML 或脚本执行。
+function textElement(tag, text, className = '') {
+  const element = document.createElement(tag);
+  element.textContent = text;
+  element.className = className;
+  return element;
+}
+
+function renderVerification(data) {
+  const verdicts = {
+    SUPPORTED: '有证据支持', CONTRADICTED: '与证据矛盾',
+    CONDITIONAL: '有条件成立', UNVERIFIED: '未能确认',
+  };
+  const states = {
+    not_implemented: '此类核验尚未实现', skipped: '本次未执行此类核验',
+    failed: '核验失败，尚未获得结论', partial: '核验未全部完成，尚未获得结论',
+  };
+  const graphs = Object.values(data.subgraph_results || {});
+  const cards = [];
+  const list = (parent, title, items) => {
+    if (!items.length) return;
+    parent.append(textElement('h4', title));
+    const entries = document.createElement('ul');
+    entries.append(...items.map(item => textElement('li', item)));
+    parent.append(entries);
+  };
+  for (const claim of data.claims) {
+    const findings = graphs.flatMap(graph => (graph.findings || []).map(finding => ({ graph, finding })))
+      .filter(({ finding }) => finding.claim_id === claim.claim_id);
+    const entries = findings.length ? findings : [{
+      graph: (data.subgraph_results || {})[claim.type.toLowerCase()], finding: null,
+    }];
+    for (const { graph, finding } of entries) {
+      const card = textElement('article', '', 'claim-result');
+      card.append(textElement('h3', claim.content));
+      const assessment = finding?.assessment;
+      const verdict = textElement('p', verdicts[assessment?.verdict] ||
+        states[graph?.status] || '尚未获得核验结论', 'verdict');
+      if (assessment) verdict.dataset.verdict = assessment.verdict;
+      card.append(verdict);
+      if (assessment && ['partial', 'failed'].includes(graph?.status)) {
+        card.append(textElement('p', `${graph.status === 'failed' ? '本项核验失败' : '本项核验仅完成一部分'}；当前展示已返回的判定。`, 'error'));
+      }
+      const evidence = finding?.evidence || [];
+      let reason = assessment?.reason || finding?.summary;
+      // 结论里的内部证据 ID 换成与下方材料对应的编号，原响应仍完整保留。
+      evidence.forEach((item, index) => {
+        if (reason && item.evidence_id) {
+          const label = `【证据 ${index + 1}】`;
+          reason = reason.replaceAll(`证据${item.evidence_id}`, label).replaceAll(item.evidence_id, label);
+        }
+      });
+      if (reason) card.append(textElement('p', reason, 'reason'));
+      if (assessment) {
+        card.append(textElement('p', `核验范围：${assessment.target}\n时间范围：${assessment.time_scope}`, 'scope'));
+        list(card, '成立条件或例外', assessment.conditions || []);
+        list(card, '仍待核实', (assessment.remaining_gaps || []).map(gap => `${gap.question} — ${gap.reason}`));
+      }
+      const error = finding?.error || graph?.error;
+      if (error) card.append(textElement('p', `未完成项：${error}`, 'error'));
+      const roles = [
+        ['supporting_evidence', '支持证据'], ['counter_evidence', '反证'], ['context_evidence', '背景证据'],
+      ];
+      const roleFor = item => roles.filter(([field]) => item.evidence_id &&
+        (assessment?.[field] || []).includes(item.evidence_id)).map(([, label]) => label);
+      const cited = evidence.filter(item => roleFor(item).length).length;
+      card.append(textElement('p', `采集 ${evidence.length} 份材料；判定引用 ${cited} 份。`, 'evidence-count'));
+      for (const item of [...evidence].sort((a, b) => Boolean(roleFor(b).length) - Boolean(roleFor(a).length))) {
+        const detail = textElement('details', '', 'evidence');
+        const labels = roleFor(item);
+        detail.open = labels.length > 0;
+        detail.append(textElement('summary', `证据 ${evidence.indexOf(item) + 1} · ${labels.join('、') || '未被本次判定引用'} · ${item.source}`));
+        if (item.url) {
+          try {
+            const url = new URL(item.url);
+            if (['http:', 'https:'].includes(url.protocol)) {
+              const link = textElement('a', '打开来源');
+              link.href = url.href;
+              link.target = '_blank';
+              link.rel = 'noopener noreferrer';
+              detail.append(link);
+            }
+          } catch { /* 无法解析的来源地址保留在原始响应中，不生成可点击链接。 */ }
+        }
+        detail.append(textElement('p', `发布时间：${item.published_at || '未知'}\n读取时间：${item.retrieved_at || '未知'}`, 'evidence-time'));
+        const original = document.createElement('details');
+        original.append(textElement('summary', '查看证据原文'), textElement('p', item.content, 'evidence-content'));
+        detail.append(original);
+        card.append(detail);
+      }
+      cards.push(card);
+    }
+  }
+  document.querySelector('#findings').replaceChildren(...cards);
+  document.querySelector('#claims').textContent = JSON.stringify(data, null, 2);
+  document.querySelector('#raw-result').open = false;
+  result.hidden = false;
+  const summary = verificationStatus(data);
+  status.className = summary.attention ? 'error' : '';
+  status.textContent = summary.message;
+  result.focus({ preventScroll: true });
+  result.scrollIntoView({ block: 'start' });
+}
+
 form.addEventListener('submit', async event => {
   event.preventDefault();
   if (evaluating || uploads.some(item => item.pending || item.error)) return;
@@ -142,11 +246,7 @@ form.addEventListener('submit', async event => {
     const data = await request('/api/verifications', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
     });
-    document.querySelector('#claims').textContent = JSON.stringify(data, null, 2);
-    result.hidden = false;
-    const summary = verificationStatus(data);
-    status.className = summary.attention ? 'error' : '';
-    status.textContent = summary.message;
+    renderVerification(data);
   } catch (error) {
     status.className = 'error';
     status.textContent = error.message;

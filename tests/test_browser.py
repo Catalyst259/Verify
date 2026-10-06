@@ -129,7 +129,7 @@ def test_drag_upload_to_real_browser_agent(tmp_path, monkeypatch, with_links, mo
             page.locator("#submit").click()
             page.wait_for_function("!document.querySelector('#fields').disabled", timeout=120_000)
             assert page.locator("#result").is_visible(), page.locator("#status").inner_text()
-            output = json.loads(page.locator("#claims").inner_text())
+            output = json.loads(page.locator("#claims").text_content())
             assert output["context"]["target_place"] == "测试公园"
             assert output["run_id"]
             assert output["status"] == "partial"
