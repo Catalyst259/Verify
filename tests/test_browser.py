@@ -82,8 +82,18 @@ def test_drag_upload_to_real_browser_agent(tmp_path, monkeypatch, with_links, mo
             }}}
         content = {"evaluation_previous_goal": "Success", "memory": "测试材料", "next_goal": "读取或完成",
                    "thinking": "Scripted test response; not a real model extraction.", "action": [action]}
+        if model == "deepseek-flash":
+            content["thinking"] += "\nRaw LF\rRaw CR\tRaw tab"
+        response_content = json.dumps(content)
+        if model == "deepseek-flash":
+            thinking = json.dumps(content["thinking"])
+            response_content = response_content.replace(
+                thinking, thinking.replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t"), 1)
+            with pytest.raises(json.JSONDecodeError):
+                json.loads(response_content)
+            assert json.loads(response_content, strict=False) == content
         return {"id": "test", "object": "chat.completion", "created": 0, "model": "gpt-4.1",
-                "choices": [{"index": 0, "message": {"role": "assistant", "content": json.dumps(content)},
+                "choices": [{"index": 0, "message": {"role": "assistant", "content": response_content},
                              "finish_reason": "stop"}]}
 
     async def skip_fact(*args):

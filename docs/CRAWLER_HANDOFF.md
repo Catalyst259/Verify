@@ -70,6 +70,8 @@ $env:VERIFY_CHROMIUM = "C:\Program Files\Google\Chrome\Application\chrome.exe"
 
 2026-10-06 本地必需验收已通过：后端 158 项通过，11 项 opt-in 浏览器测试另行全部通过。完整浏览器日志含十条真实 DOM 正文、错误 HTTP 正文拒绝及取消清理。一次真实小红书模块查询“上海公园”读取十条 WEB 正文，59.482 秒，净化链接和带时区的读取时间检查通过；发布时间均保持未知，未调用真实模型，也未把正文写入交接回执。
 
-新后端已用单 worker、无 reload 在本地启动，页面及 OpenAPI 返回 200，无效核验请求返回 422，四字段 HTTP 契约核对通过。进程号和日志位置以 `../handoff/online/backend-startup.json` 为准；本机辅助启动脚本为同目录 `start_backend.ps1`。当前保留的模型 api_key 为空，测试真实模型判定前需用户在本地配置填写密钥并重启；密钥不提交。独立来源采集不要求模型密钥。
+新后端已用单 worker、无 reload 在本地启动，页面及 OpenAPI 返回 200，无效核验请求返回 422，四字段 HTTP 契约核对通过。进程号和日志位置以 `../handoff/online/backend-startup.json` 为准；本机辅助启动脚本为同目录 `start_backend.ps1`。随后已按用户要求在忽略的 config.local.toml 配置 DeepSeek Flash，并单独验证模型连接；模型参数每次调用重新读取，来源参数仍需重启生效。密钥不提交。独立来源采集不要求模型密钥。
 
 所有工作需留档；最终本地提交、启动进程、测试日志与推送结果记录在仓库外 handoff/online 和 CRAWLER_ONLINE_PUSH_RECEIPT.md。后续 agent 先重新检查 Git、上游及进程，再继续工作。推送必须晚于本地验收，权限补齐前不改为 Fork 或推送旧离线提交。
+
+后续空材料输入和真实模型 Search 中断排查见 [EMPTY_INPUT_AND_MODEL_JSON.md](EMPTY_INPUT_AND_MODEL_JSON.md)。它记录同日追加修复与验证；上面的158项和11项是首次爬虫集成的历史验收，后续完整测试数量以追加记录为准。默认 route、crowd、experience 仍未实现，不能把其 partial 状态归因于爬虫没有运行。

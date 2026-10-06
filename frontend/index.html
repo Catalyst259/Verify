@@ -14,7 +14,8 @@
     <form id="form">
       <fieldset id="fields">
         <label for="place">地点</label>
-        <input id="place" name="target_place" maxlength="100" placeholder="例如：上海迪士尼乐园" required>
+        <input id="place" name="target_place" maxlength="100" placeholder="例如：上海迪士尼乐园" aria-describedby="place-hint" required>
+        <small id="place-hint">地点仅用于限定核验范围。请同时提供文字、图片或链接中的至少一种材料。</small>
 
         <label for="images">图片</label>
         <div id="dropzone">

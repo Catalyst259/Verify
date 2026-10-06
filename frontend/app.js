@@ -82,6 +82,12 @@ form.addEventListener('submit', async event => {
     link: document.querySelector('#links').value.split(/\r?\n/).map(link => link.trim()).filter(Boolean),
     image: uploads.map(item => item.code),
   };
+  if (!payload.text.trim() && !payload.link.length && !payload.image.length) {
+    result.hidden = true;
+    status.className = 'error';
+    status.textContent = '请至少提供一种材料：文字、图片或链接。';
+    return;
+  }
   evaluating = true;
   fields.disabled = true;
   renderUploads();
@@ -95,7 +101,7 @@ form.addEventListener('submit', async event => {
     document.querySelector('#claims').textContent = JSON.stringify(data, null, 2);
     result.hidden = false;
     const messages = {
-      no_claims: '未提取到明确主张，未进行核验。',
+      no_claims: '材料中未提取到明确主张，未进行核验。请补充包含具体说法的文字、图片或链接。',
       not_implemented: `已提取 ${data.claims.length} 条主张，核验功能尚未实现。`,
       completed: `核验流程已完成，共 ${data.claims.length} 条主张。`,
       partial: '核验未全部完成，请查看各项结果。',

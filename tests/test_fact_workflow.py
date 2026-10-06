@@ -275,6 +275,9 @@ def test_query_candidates_deduplication_and_changed_page():
 def test_browser_tools_expose_only_metered_search_read_and_done():
     tools = create_tools(new_session(), object())
     assert set(tools.registry.registry.actions) == {"search_web", "read_page", "done"}
+    assert tools.get_output_model() is None
+    done_schema = tools.registry.registry.actions["done"].param_model.model_json_schema()
+    assert done_schema["properties"] == {} and done_schema["additionalProperties"] is False
 
 
 @pytest.mark.parametrize("finish_reason", ["stop", "length"])
@@ -353,5 +356,5 @@ def test_fenced_model_response_through_plan_and_validate(monkeypatch, invalid):
         assert result.findings[0].assessment.verdict == "SUPPORTED"
         assert calls == ["plan", "validate"] and searches == ["c0"]
     else:
-        assert result.status == "failed" and "Plan: ValidationError:" in result.error
+        assert result.status == "failed" and result.error.startswith(("Plan: ValueError:", "Plan: ValidationError:"))
         assert calls == ["plan"] and not searches

@@ -8,6 +8,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from backend.common.errors import ExtractionFailed, ModelNotConfigured
+from backend.common.model_json import normalize_model_json
 from backend.storage.models import StoredImage
 
 from .models import ClaimExtractionResult
@@ -74,8 +75,11 @@ async def extract_claims(
                         max_tokens=8192,
                         extra_body={"thinking": {"type": "disabled"}},
                     )
+                choice = response.choices[0]
+                if choice.finish_reason != "stop" or not choice.message.content:
+                    raise ValueError("模型未返回完整的 JSON 响应")
                 return ChatInvokeCompletion(
-                    completion=output_format.model_validate_json(response.choices[0].message.content or ""),
+                    completion=output_format.model_validate_json(normalize_model_json(choice.message.content)),
                     usage=self._get_usage(response),
                 )
             return await super().ainvoke(messages, output_format=output_format, **kwargs)

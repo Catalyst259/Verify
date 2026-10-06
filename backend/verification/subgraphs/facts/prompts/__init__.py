@@ -1,4 +1,4 @@
-"""加载 Fact 系统提示词，并附上现有 Pydantic 契约生成的输出 Schema。"""
+"""加载 Fact 提示词；Plan/Validate 附输出 Schema，Search 只选择工具动作。"""
 
 import json
 from pathlib import Path
@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import TypeAdapter
 
-from ..model import FactPlan, SearchResult, ValidateResult
+from ..model import FactPlan, ValidateResult
 
 
 def load_system_prompt(step: Literal["plan", "search", "validate"]) -> str:
@@ -15,11 +15,13 @@ def load_system_prompt(step: Literal["plan", "search", "validate"]) -> str:
     业务 State 应单独作为任务消息传入，不能插值进系统指令。
     未知步骤抛出 ValueError；资源读取失败保留对应的文件异常。
     """
-    output_types = {"plan": list[FactPlan], "search": SearchResult, "validate": list[ValidateResult]}
-    if step not in output_types:
+    output_types = {"plan": list[FactPlan], "validate": list[ValidateResult]}
+    if step not in {"plan", "search", "validate"}:
         raise ValueError(f"未知 Fact 步骤: {step}")
     directory = Path(__file__).resolve().parent
     sections = [directory.joinpath(f"{step}.md").read_text(encoding="utf-8").strip()]
+    if step == "search":
+        return sections[0]
     if step == "plan":
         skill = directory.parent.joinpath("skills/fact-plan/SKILL.md").read_text(encoding="utf-8")
         sections.append(skill.split("---", 2)[2].strip())

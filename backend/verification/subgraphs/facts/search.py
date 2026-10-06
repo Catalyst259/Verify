@@ -8,7 +8,10 @@ from time import perf_counter
 from urllib.parse import quote_plus, urlsplit
 from uuid import uuid4
 
+from pydantic import BaseModel, ConfigDict
+
 from backend.extraction.agent import load_config
+from backend.common.model_json import normalize_model_json
 from backend.sources.xiaohongshu import canonical_note_id
 from backend.verification.capabilities import EvidenceSource
 from backend.verification.models import FactSourceType
@@ -221,11 +224,18 @@ def create_tools(session: SearchSession, browser):
     from browser_use import Tools
     from browser_use.agent.views import ActionResult
 
-    tools = Tools(output_model=SearchResult)
+    tools = Tools()
     # 所有取证均走以下两个动作，防止默认导航或 extract 绕过预算和正文记录。
     for name in list(tools.registry.registry.actions):
         if name != "done":
             tools.exclude_action(name)
+
+    class FinishSearchParams(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+
+    @tools.action("结束本轮取证；参数必须为空对象，由代码返回本轮实际登记的材料和错误。", param_model=FinishSearchParams)
+    async def done(params: FinishSearchParams):
+        return ActionResult(is_done=True, success=True, extracted_content=session.result().model_dump_json())
 
     @tools.action("搜索网页候选（最多 10 个），需 read_page 读取正文；已配置的小红书并行读取 WEB 正文证据。")
     async def search_web(query: str):
@@ -323,14 +333,22 @@ async def run_search(session: SearchSession, system_prompt: str, task: str) -> s
         async def invoke_model(self, messages, output_format=None, **kwargs):
             if config["model"].startswith("deepseek-") and output_format is not None:
                 schema = json.dumps(output_format.model_json_schema(), ensure_ascii=False)
-                messages = [*messages, UserMessage(content="返回符合此 JSON Schema 的 JSON：" + schema)]
+                messages = [*messages, UserMessage(content=(
+                    "返回符合此 JSON Schema 的完整 JSON 对象。必须包含非空 action 数组，"
+                    "每次只选择一个实际工具动作；不得只有 thinking。"
+                    '结束使用 action: [{"done": {}}]，不要传入 success、data 或证据字段。\nJSON Schema：'
+                    + schema
+                ))]
                 async with self.get_client() as client:
                     response = await client.chat.completions.create(
                         model=self.model, messages=OpenAIMessageSerializer.serialize_messages(messages),
                         response_format={"type": "json_object"}, extra_body={"thinking": {"type": "disabled"}},
                     )
+                choice = response.choices[0]
+                if choice.finish_reason != "stop" or not choice.message.content:
+                    raise ValueError("模型未返回完整的 JSON 响应")
                 return ChatInvokeCompletion(
-                    completion=output_format.model_validate_json(response.choices[0].message.content or ""),
+                    completion=output_format.model_validate_json(normalize_model_json(choice.message.content)),
                     usage=self._get_usage(response),
                 )
             return await super().ainvoke(messages, output_format=output_format, **kwargs)
@@ -346,10 +364,10 @@ async def run_search(session: SearchSession, system_prompt: str, task: str) -> s
     try:
         agent = Agent(
             task=task, llm=llm, browser=browser, tools=create_tools(session, browser),
-            extend_system_message=system_prompt, output_model_schema=SearchResult,
+            extend_system_message=system_prompt,
             use_vision=False, use_judge=False, enable_planning=False, message_compaction=False,
             enable_signal_handler=False, directly_open_url=False, max_actions_per_step=1,
-            max_failures=1, final_response_after_failure=False, register_should_stop_callback=should_stop,
+            max_failures=2, final_response_after_failure=False, register_should_stop_callback=should_stop,
         )
         history = await agent.run(max_steps=min(config["max_steps"], MAX_TOOL_CALLS + 1))
         if datetime.now(timezone.utc) >= session.deadline_at:
