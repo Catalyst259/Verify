@@ -111,7 +111,7 @@ def run_api(tmp_path, monkeypatch, source, *, queries=("公园",)):
         response = client.post("/api/verifications", json=payload)
     assert response.status_code == 200, response.text
     body = response.json()
-    assert set(body) == {"run_id", "context", "claims", "subgraph_results", "status"}
+    assert set(body) == {"run_id", "context", "claims", "subgraph_results", "conflicts", "status"}
     assert body["status"] == "completed"
     assert body["claims"][0]["sources"][0]["source_type"] == "TEXT"
     assert capabilities.input_urls == () and not source.closed

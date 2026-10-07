@@ -78,7 +78,7 @@ def submit_result(page, output):
     ("SUPPORTED", "有证据支持"),
     ("CONTRADICTED", "与证据矛盾"),
     ("CONDITIONAL", "有条件成立"),
-    ("UNVERIFIED", "未能确认"),
+    ("UNVERIFIED", "证据不足，未能确认"),
 ])
 def test_readable_verdict_reasons_citations_and_raw_response(browser, verdict, label):
     output = readable_result(verdict)

@@ -54,7 +54,7 @@ def test_upload_persists_and_submission_recovers_in_request_order(tmp_path):
         response = client.post("/api/verifications", json=payload)
         assert response.status_code == 200
         data = response.json()
-        assert set(data) == {"run_id", "context", "claims", "subgraph_results", "status"}
+        assert set(data) == {"run_id", "context", "claims", "subgraph_results", "conflicts", "status"}
         assert data["run_id"]
         assert data["context"]["target_place"] == payload["target_place"]
         assert data["context"]["checked_at"]

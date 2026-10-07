@@ -101,13 +101,14 @@ function verificationStatus(data) {
     messages.push(fallback[data.status] || '核验流程已结束，请查看结果。');
   }
   // 执行完成与主张是否得到证据支持是两种结果，证据不足不能显示为核验失败。
-  const findings = results.fact?.findings || [];
+  // 四类子图的 UNVERIFIED 语义一致，证据不足的统计不限于事实核验。
+  const findings = Object.values(results).flatMap(result => result.findings || []);
   const insufficient = new Set(findings.filter(item => item.assessment?.evidence_sufficient === false)
     .map(item => item.claim_id));
   const unverified = new Set(findings.filter(item => item.assessment?.verdict === 'UNVERIFIED' &&
     item.assessment.evidence_sufficient !== false).map(item => item.claim_id));
-  if (insufficient.size) messages.push(`有 ${insufficient.size} 条事实主张证据不足，未能确认；这不表示这些说法是假的。`);
-  if (unverified.size) messages.push(`有 ${unverified.size} 条事实主张未能确认，请查看判定理由。`);
+  if (insufficient.size) messages.push(`有 ${insufficient.size} 条主张证据不足，未能确认；这不表示这些说法是假的。`);
+  if (unverified.size) messages.push(`有 ${unverified.size} 条主张未能确认，请查看判定理由。`);
   return {
     message: messages.join(''),
     attention: Boolean(partial || failed || insufficient.size || unverified.size ||
@@ -123,11 +124,44 @@ function textElement(tag, text, className = '') {
   return element;
 }
 
-function renderVerification(data) {
-  const verdicts = {
+// 四类子图各有自己的判定词表：同一个词在不同类别里含义不同，套用同一套标签会把
+// 「数值冲突」「存在明显分化」显示成事实判定的措辞，等于丢掉后端语义。
+const VERDICT_LABELS = {
+  fact: {
     SUPPORTED: '有证据支持', CONTRADICTED: '与证据矛盾',
-    CONDITIONAL: '有条件成立', UNVERIFIED: '未能确认',
-  };
+    CONDITIONAL: '有条件成立', UNVERIFIED: '证据不足，未能确认',
+  },
+  route: {
+    MATCHED: '数值吻合', MISMATCHED: '数值冲突',
+    CONDITION_MISMATCH: '条件不符', UNVERIFIED: '证据不足，未能确认',
+  },
+  crowd: {
+    SUPPORTED: '当前证据支持', NOT_SUPPORTED: '当前证据不支持',
+    SCENARIO_ONLY: '仅特定场景成立', UNVERIFIED: '证据不足，未能确认',
+  },
+  experience: {
+    CONSISTENT: '体验较一致', DIVERGENT: '存在明显分化',
+    SCENARIO_DEPENDENT: '高度依赖场景', UNVERIFIED: '证据不足，未能确认',
+  },
+};
+const KIND_NAMES = { fact: '事实', route: '路线', crowd: '人流', experience: '体验' };
+
+// 判定词表里没有卡片的分类，用判定自身的 kind 判别；旧数据没有 kind 即事实判定。
+function assessmentKind(finding, fallback) {
+  return finding?.assessment?.kind || fallback;
+}
+
+function durationText(seconds) {
+  if (seconds == null) return '未知';
+  const minutes = seconds / 60;
+  return Number.isInteger(minutes) ? `${minutes} 分钟` : `${minutes.toFixed(1)} 分钟`;
+}
+
+function distanceText(meters) {
+  return meters == null ? '未知' : `${(meters / 1000).toFixed(1)} 公里`;
+}
+
+function renderVerification(data) {
   const states = {
     not_implemented: '此类核验尚未实现', skipped: '本次未执行此类核验',
     failed: '核验失败，尚未获得结论', partial: '核验未全部完成，尚未获得结论',
@@ -149,14 +183,33 @@ function renderVerification(data) {
     }];
     for (const { graph, finding } of entries) {
       const card = textElement('article', '', 'claim-result');
-      card.append(textElement('h3', claim.content));
       const assessment = finding?.assessment;
-      const verdict = textElement('p', verdicts[assessment?.verdict] ||
-        states[graph?.status] || '尚未获得核验结论', 'verdict');
+      const kind = assessmentKind(finding, graph?.graph_name || claim.type.toLowerCase());
+      card.append(textElement('p', `${KIND_NAMES[kind] || kind}核验`, 'kind'));
+      card.append(textElement('h3', claim.content));
+      const labels = VERDICT_LABELS[kind] || {};
+      const verdict = textElement('p', labels[assessment?.verdict] || states[graph?.status] ||
+        assessment?.verdict || '尚未获得核验结论', 'verdict');
       if (assessment) verdict.dataset.verdict = assessment.verdict;
       card.append(verdict);
       if (assessment && ['partial', 'failed'].includes(graph?.status)) {
         card.append(textElement('p', `${graph.status === 'failed' ? '本项核验失败' : '本项核验仅完成一部分'}；当前展示已返回的判定。`, 'error'));
+      }
+      // 数值对比是路线结论本身：主张值与实测值并列，用户不读理由也能看出冲突。
+      if (assessment?.kind === 'route') {
+        card.append(textElement('p', [
+          `主张 ${durationText(assessment.claimed_seconds)} · 实测 ${durationText(assessment.measured_seconds)}`,
+          `交通方式 ${assessment.transport_mode} · 距离 ${distanceText(assessment.distance_meters)}` +
+            ` · 容差 ${durationText(assessment.tolerance_seconds)}`,
+        ].join('\n'), 'route-compare'));
+      }
+      if (assessment?.kind === 'crowd') {
+        card.append(textElement('p', `场景条件：${assessment.scenario}` + (assessment.evidence_time_coverage
+          ? `\n证据时间覆盖：${assessment.evidence_time_coverage}` : ''), 'scenario'));
+      }
+      if (assessment?.kind === 'experience') {
+        card.append(textElement('p', `来源一致度：${assessment.source_agreement == null ? '未知' :
+          `${Math.round(assessment.source_agreement * 100)}%`}`, 'agreement'));
       }
       const evidence = finding?.evidence || [];
       let reason = assessment?.reason || finding?.summary;
@@ -208,6 +261,26 @@ function renderVerification(data) {
       cards.push(card);
     }
   }
+  // 冲突只陈述矛盾，不替用户裁决：两侧各自的判定词与依据都要能直接看到。
+  // 无冲突时不渲染任何内容，干净的一次核验不该出现冲突区块。
+  const conflicts = (data.conflicts || []).map(conflict => {
+    const card = textElement('article', '', 'claim-conflict');
+    const claim = data.claims.find(item => item.claim_id === conflict.claim_id);
+    card.append(textElement('h3', '同一条说法的结论互相矛盾'));
+    if (claim) card.append(textElement('p', claim.content));
+    card.append(textElement('p', conflict.detail, 'conflict-detail'));
+    const sides = document.createElement('ul');
+    sides.append(...Object.entries(conflict.by_graph).map(([name, item]) => {
+      const kind = assessmentKind(item, name);
+      const label = (VERDICT_LABELS[kind] || {})[item.assessment?.verdict] || item.assessment?.verdict;
+      return textElement('li', `${KIND_NAMES[kind] || name}核验：${label || '尚未获得核验结论'}`
+        + ` —— ${item.summary}`);
+    }));
+    card.append(sides);
+    return card;
+  });
+  document.querySelector('#conflicts').replaceChildren(...conflicts);
+  document.querySelector('#conflicts').hidden = !conflicts.length;
   document.querySelector('#findings').replaceChildren(...cards);
   document.querySelector('#claims').textContent = JSON.stringify(data, null, 2);
   document.querySelector('#raw-result').open = false;
