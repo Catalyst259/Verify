@@ -15,12 +15,12 @@ ModelCall = Callable[[str, str], Awaitable[str]]
 EvidenceSearch = Callable[["SearchSession", str, str], Awaitable[str]]
 
 
-async def call_fact_llm(system_prompt: str, task: str) -> str:
+async def call_llm(system_prompt: str, task: str) -> str:
     from .subgraphs.facts.llm import complete
     return await complete(system_prompt, task)
 
 
-async def run_fact_search(session: "SearchSession", system_prompt: str, task: str) -> str:
+async def call_search(session: "SearchSession", system_prompt: str, task: str) -> str:
     from .subgraphs.facts.search import run_search
     return await run_search(session, system_prompt, task)
 
@@ -112,7 +112,7 @@ class VerificationCapabilities:
     subgraph_timeout_seconds: float = 300
     # 浏览器槽位与运行截止时间不能跨运行复用，所以每次运行新建；None 表示该调用点不启用运行级预算。
     run_budget: RunBudget | None = None
-    fact_llm: ModelCall = call_fact_llm
+    llm: ModelCall = call_llm
     # None 表示本次运行没有取证能力；仍可完成规划和缺证据判定。
-    fact_search: EvidenceSearch | None = run_fact_search
+    search: EvidenceSearch | None = call_search
     input_urls: tuple[str, ...] = ()

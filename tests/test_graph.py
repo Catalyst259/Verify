@@ -142,7 +142,7 @@ def test_default_registry_runs_fact_and_keeps_other_placeholders(tmp_path):
         calls.append(task)
         return "[]"
 
-    verification = service(tmp_path, extract, capabilities=VerificationCapabilities(fact_llm=skip_fact))
+    verification = service(tmp_path, extract, capabilities=VerificationCapabilities(llm=skip_fact))
     run = asyncio.run(verification.run(VerificationInput(target_place="公园", text="免费开放，周末游客少")))
     assert run.status == "partial"
     assert len(calls) == 1

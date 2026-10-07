@@ -47,7 +47,7 @@ def inputs(count=1):
 
 def run(model, search=None, count=1, timeout=10):
     return asyncio.run(build_fact_subgraph().ainvoke(inputs(count), context=VerificationCapabilities(
-        fact_llm=model, fact_search=search, subgraph_timeout_seconds=timeout,
+        llm=model, search=search, subgraph_timeout_seconds=timeout,
     )))["result"]
 
 

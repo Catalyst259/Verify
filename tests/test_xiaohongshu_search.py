@@ -229,7 +229,7 @@ def test_each_request_has_its_own_input_note_exclusions_even_for_text_claims(tmp
         storage = StorageRepository(tmp_path)
         storage.initialize()
         service = VerificationService(storage, extract, subgraphs={"fact": build_fact_subgraph()},
-                                      capabilities=replace(shared, fact_llm=model, fact_search=runner))
+                                      capabilities=replace(shared, llm=model, search=runner))
         results = await asyncio.gather(*(service.run(VerificationInput(
             target_place=f"request-{number}", text="停车场开放。", link=[note(number)["url"]],
         )) for number in (1, 2)))

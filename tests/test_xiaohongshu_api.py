@@ -99,8 +99,8 @@ def run_api(tmp_path, monkeypatch, source, *, queries=("公园",)):
         return session.result().model_dump_json()
 
     capabilities = VerificationCapabilities(
-        evidence_sources={"xiaohongshu": source}, fact_llm=fact_model,
-        fact_search=runner, subgraph_timeout_seconds=20,
+        evidence_sources={"xiaohongshu": source}, llm=fact_model,
+        search=runner, subgraph_timeout_seconds=20,
     )
     payload = {"target_place": "公园", "text": "公园有停车场。", "image": [],
                "link": [f"http://www.xiaohongshu.com:80/explore/{INPUT_ID}?xsec_token=synthetic"]}
@@ -207,7 +207,7 @@ def test_explicit_capabilities_skip_source_configuration_and_keep_external_owner
     async def empty(*args):
         return ClaimExtractionResult(target_place="公园", claims=[])
 
-    capabilities = VerificationCapabilities(evidence_sources={"xiaohongshu": source}, fact_search=None)
+    capabilities = VerificationCapabilities(evidence_sources={"xiaohongshu": source}, search=None)
     with TestClient(main.create_app(tmp_path, empty, capabilities=capabilities)) as client:
         response = client.post("/api/verifications", json={"target_place": "公园"})
         assert response.status_code == 200 and response.json()["status"] == "no_claims"

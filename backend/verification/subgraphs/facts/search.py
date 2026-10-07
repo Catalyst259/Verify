@@ -16,7 +16,8 @@ from backend.sources.xiaohongshu import canonical_note_id
 from backend.verification.capabilities import EvidenceSource
 from backend.verification.models import FactSourceType
 
-from .diagnostics import page_category, record, timed
+from ..diagnostics import record, timed
+from .diagnostics import page_category
 from .model import MAX_EVIDENCE_PER_ROUND, MAX_QUERIES, MAX_RESULTS_PER_QUERY, MAX_TOOL_CALLS, FactEvidence, SearchResult
 from .state import FactClaimState, FactRoundState
 

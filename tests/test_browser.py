@@ -99,7 +99,7 @@ def test_drag_upload_to_real_browser_agent(tmp_path, monkeypatch, with_links, mo
     async def skip_fact(*args):
         return "[]"
 
-    app.mount("/", main.create_app(tmp_path, capabilities=VerificationCapabilities(fact_llm=skip_fact)))
+    app.mount("/", main.create_app(tmp_path, capabilities=VerificationCapabilities(llm=skip_fact)))
     # 挂载的子应用不会自动运行 lifespan。
     StorageRepository(tmp_path).initialize()
     with sync_playwright() as playwright, serve(app) as base_url:

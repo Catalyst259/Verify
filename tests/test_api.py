@@ -28,7 +28,7 @@ def test_upload_persists_and_submission_recovers_in_request_order(tmp_path):
     async def skip_fact(*args):
         return "[]"
 
-    capabilities = VerificationCapabilities(fact_llm=skip_fact)
+    capabilities = VerificationCapabilities(llm=skip_fact)
 
     async def extract(target_place, description_text, links, images):
         captured.update(target_place=target_place, text=description_text, links=links, images=images)
