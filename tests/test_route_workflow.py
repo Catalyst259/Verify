@@ -11,6 +11,7 @@ from backend.verification.subgraphs.route import build_route_subgraph
 from backend.verification.subgraphs.route.model import RoutePlan
 
 CHECKED = datetime(2026, 10, 7, 9, 0, 0, tzinfo=timezone.utc)
+EVIDENCE_ID = "c0-r1-0"  # 测量会话生成的首个实测证据标识
 
 
 class FakeRouting:
@@ -18,10 +19,8 @@ class FakeRouting:
 
     def __init__(self, duration=1080.0, distance=1500.0, unreachable=False):
         self.duration, self.distance, self.unreachable = duration, distance, unreachable
-        self.calls = []
 
     async def route(self, origin: Coordinates, destination: Coordinates, costing):
-        self.calls.append((origin, destination, costing))
         return RouteResult(costing=costing,
                            duration_seconds=None if self.unreachable else self.duration,
                            distance_meters=None if self.unreachable else self.distance)
@@ -40,8 +39,10 @@ def make_plan(claim_id, claimed=300.0, tolerance=120.0):
                      questions=["从地铁站步行到公园入口需要多久？"])
 
 
-def assessment(plan, verdict, measured, claimed=None):
-    """判定回显主张数值；claimed 用于测试模型试图改写主张数字的场景。"""
+def assessment(plan, verdict, measured, *, cited=EVIDENCE_ID, claimed=None):
+    """判定回显主张数值；cited 用于测试引用不存在证据的场景。"""
+    support = [cited] if verdict == "MATCHED" and cited else []
+    counter = [cited] if verdict == "MISMATCHED" and cited else []
     return {"target": plan.target, "time_scope": plan.time_scope,
             "verdict": verdict, "confidence": 0.9 if measured is not None else None,
             "evidence_sufficient": measured is not None,
@@ -50,8 +51,8 @@ def assessment(plan, verdict, measured, claimed=None):
             "transport_mode": plan.transport_mode, "tolerance_seconds": plan.tolerance_seconds,
             "measured_seconds": measured,
             "distance_meters": 1500.0 if measured is not None else None,
-            "conditions": [], "supporting_evidence": ["m0"] if verdict == "MATCHED" else [],
-            "counter_evidence": ["m0"] if verdict == "MISMATCHED" else [], "context_evidence": ["m0"]}
+            "conditions": [], "supporting_evidence": support, "counter_evidence": counter,
+            "context_evidence": [cited] if cited else []}
 
 
 def inputs(claim_text="从地铁步行 5 分钟即到。"):
@@ -72,12 +73,11 @@ def run(model, routing, resolver=resolve_ok()):
         subgraph_timeout_seconds=10)))["result"]
 
 
-def model_returning(plan, verdict, measured, claimed=None):
+def model_returning(plan, verdict, measured, **kw):
     async def model(prompt, task):
         if prompt.startswith("# Route Plan"):
             return json.dumps([plan.model_dump(mode="json")])
-        return json.dumps([{"claim_id": plan.claim_id,
-                            "assessment": assessment(plan, verdict, measured, claimed)}])
+        return json.dumps([{"claim_id": plan.claim_id, "assessment": assessment(plan, verdict, measured, **kw)}])
     return model
 
 
@@ -105,7 +105,7 @@ def test_unresolved_place_is_unverified_and_never_a_fabricated_duration():
     async def unresolvable(text):
         return None
 
-    result = run(model_returning(plan, "UNVERIFIED", None), FakeRouting(), resolver=unresolvable)
+    result = run(model_returning(plan, "UNVERIFIED", None, cited=None), FakeRouting(), resolver=unresolvable)
 
     assert result.status == "completed"
     verdict = result.findings[0].assessment
@@ -124,9 +124,41 @@ def test_model_cannot_rewrite_the_claimed_number():
     assert "改写" in finding.error
 
 
+def test_verdict_that_contradicts_the_numbers_is_rejected():
+    """实测落在容差内却判「数值冲突」，或超出容差却判「数值吻合」，都必须被拒。"""
+    plan = make_plan("c0", claimed=300.0, tolerance=120.0)
+
+    within_but_refuted = run(model_returning(plan, "MISMATCHED", 360.0), FakeRouting(duration=360.0))
+    assert within_but_refuted.findings[0].assessment is None
+    assert "必须为 MATCHED" in within_but_refuted.findings[0].error
+
+    outside_but_agreed = run(model_returning(plan, "MATCHED", 1080.0), FakeRouting(duration=1080.0))
+    assert outside_but_agreed.findings[0].assessment is None
+    assert "必须为 MISMATCHED" in outside_but_agreed.findings[0].error
+
+
+def test_measurement_not_recorded_by_the_map_is_rejected():
+    """模型不得填一个证据里不存在的实测值——那是用户会读到的数字。"""
+    plan = make_plan("c0", claimed=300.0, tolerance=120.0)
+    result = run(model_returning(plan, "MISMATCHED", 350.0), FakeRouting(duration=3600.0))
+
+    finding = result.findings[0]
+    assert finding.assessment is None
+    assert "不在已取得的测量中" in finding.error
+
+
+def test_citing_evidence_that_was_never_collected_is_rejected():
+    plan = make_plan("c0", claimed=300.0, tolerance=120.0)
+    result = run(model_returning(plan, "MATCHED", 360.0, cited="invented-id"), FakeRouting(duration=360.0))
+
+    finding = result.findings[0]
+    assert finding.assessment is None
+    assert "未取得的证据" in finding.error
+
+
 def test_unreachable_route_is_a_measurement_not_an_error():
     plan = make_plan("c0")
-    result = run(model_returning(plan, "UNVERIFIED", None), FakeRouting(unreachable=True))
+    result = run(model_returning(plan, "UNVERIFIED", None, cited=None), FakeRouting(unreachable=True))
 
     assert result.status == "completed"
     assert result.findings[0].assessment.measured_seconds is None

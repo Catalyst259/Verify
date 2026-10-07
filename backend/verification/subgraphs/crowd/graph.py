@@ -41,8 +41,9 @@ def check_assessment(old: CrowdClaimState, item: ValidateResult):
     if assessment.verdict == "UNVERIFIED":
         if assessment.evidence_sufficient or assessment.confidence is not None:
             raise ValueError("UNVERIFIED 必须保持证据不足且置信度为空")
-    # 场景条件从计划的场景描述与问题一起取：只写「未限定场景」不能绕开主张原本的条件。
-    aligned = alignment(f"{plan.scenario} {' '.join(plan.questions)}", old.evidence)
+    # 场景条件只取计划的场景字段。questions 必须按提示词写入反证场景（例如「周末前往的
+    # 游客是否反映排队很久？」），把它们当条件源会把提示词要求写的话当成假约束，误伤真匹配的证据。
+    aligned = alignment(plan.scenario, old.evidence)
     cited = set(assessment.supporting_evidence + assessment.counter_evidence)
     stray = sorted(cited - aligned.aligned)
     if stray:

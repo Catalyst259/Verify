@@ -28,6 +28,9 @@ _WEEKEND_WORDS = re.compile(r"周末|双休|周六|周日|星期六|星期日|�
 _WEEKDAY_WORDS = re.compile(r"工作日|平日|周一至周五|周一到周五|星期一至星期五")
 _HOLIDAYS = re.compile(r"节假日|假期|长假|黄金周|国庆|春节|五一|端午|中秋|元旦|清明|寒暑假|寒假|暑假")
 _SEASONS = (("春", (3, 4, 5)), ("夏", (6, 7, 8)), ("秋", (9, 10, 11)), ("冬", (12, 1, 2)))
+# 必须是「春季/秋天/冬日」这类季节词；裸子串会把「秋叶原」「夏威夷」「春熙路」
+# 这类地名误判成季节条件，给主张凭空加上一条时间约束。
+_SEASON_WORDS = {name: re.compile(rf"{name}[季天日]") for name, _ in _SEASONS}
 
 
 @dataclass(frozen=True)
@@ -123,7 +126,7 @@ def scenario_conditions(text: str) -> tuple[ScenarioCondition, ...]:
         conditions.append(ScenarioCondition("周末", weekdays=WEEKEND))
     elif _WEEKDAY_WORDS.search(text):
         conditions.append(ScenarioCondition("工作日", weekdays=WEEKDAY))
-    seasons = [name for name, _ in _SEASONS if name in text]
+    seasons = [name for name, _ in _SEASONS if _SEASON_WORDS[name].search(text)]
     if seasons:
         conditions.append(ScenarioCondition(
             "季节：" + "、".join(seasons),

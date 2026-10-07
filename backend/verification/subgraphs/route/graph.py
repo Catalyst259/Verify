@@ -24,18 +24,40 @@ def check_plan(old: RouteClaimState, plan: RoutePlan) -> None:
 
 
 def check_assessment(old: RouteClaimState, item: RouteValidateResult):
-    """判定必须回显计划的范围和主张数值，并且与自身证据自洽。"""
+    """判定必须回显计划的范围和主张数值，与实测数字一致，并只引用已取得的证据。
+
+    数值比对类主张的全部价值在于「结论和两个数字对得上」。只检查实测字段存在是不够的：
+    模型可以给出与实测相反的判定，或填一个证据里根本不存在的数字，或引用从未取得的证据。
+    这三种都会让用户读到一个比模型更可信的假结论，所以由代码强制。
+    """
     assessment, plan = item.assessment, old.plan
     if (assessment.target, assessment.time_scope) != (plan.target, plan.time_scope):
         raise ValueError("Validate 改变了目标范围")
     if (assessment.claimed_seconds, assessment.transport_mode, assessment.tolerance_seconds) != (
             plan.claimed_seconds, plan.transport_mode, plan.tolerance_seconds):
         raise ValueError("判定改写了主张的数值、交通方式或容差")
+
+    evidence_ids = {e.evidence_id for e in old.evidence}
+    references = set(assessment.supporting_evidence + assessment.counter_evidence + assessment.context_evidence)
+    if not references <= evidence_ids:
+        raise ValueError("判定引用了该 Claim 未取得的证据")
+
     measured = assessment.measured_seconds
-    if assessment.verdict == "UNVERIFIED" and measured is not None:
-        raise ValueError("证据不足时不得给出实测值")
-    if assessment.verdict in {"MATCHED", "MISMATCHED"} and measured is None:
-        raise ValueError("数值比对必须给出实测值")
+    recorded = {e.measured_seconds for e in old.evidence if e.measured_seconds is not None}
+    if measured is None:
+        if recorded:
+            raise ValueError("已有实测值，判定不得记为无实测")
+    elif measured not in recorded:
+        raise ValueError("判定给出的实测值不在已取得的测量中")
+
+    if assessment.verdict in {"MATCHED", "MISMATCHED"}:
+        if measured is None:
+            raise ValueError("数值比对必须给出实测值")
+        within = abs(measured - plan.claimed_seconds) <= plan.tolerance_seconds
+        if within and assessment.verdict != "MATCHED":
+            raise ValueError("实测落在主张容差内，判定必须为 MATCHED")
+        if not within and assessment.verdict != "MISMATCHED":
+            raise ValueError("实测超出主张容差，判定必须为 MISMATCHED")
     if assessment.verdict == "MISMATCHED" and not assessment.counter_evidence:
         raise ValueError("MISMATCHED 必须引用反证")
     if assessment.verdict == "MATCHED" and not assessment.supporting_evidence:

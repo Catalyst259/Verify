@@ -206,3 +206,53 @@ def test_second_round_keeps_the_scenario_and_only_aligned_material_can_support()
 
 async def _empty():
     return []
+
+
+def test_place_names_are_not_mistaken_for_seasonal_conditions():
+    """「秋叶原」这类地名含季节字，但不是季节条件；误判会给主张凭空加时间约束。"""
+
+    def judge(evidence):
+        return planned([item["evidence_id"] for item in evidence],
+                       scenario="秋叶原", conditions=[], reason="六月材料描述该场景排队。")
+
+    async def model(prompt, task):
+        state = json.loads(task)
+        if prompt.startswith("# Crowd Plan"):
+            plan = make_plan("c0") | {"scenario": "秋叶原"}
+            return json.dumps([plan])
+        return json.dumps([{"claim_id": "c0", "assessment": judge(evidence_of(state))}])
+
+    async def search(session, *args):
+        await read(session, published_at=date(2026, 6, 13), content="周六下午排队约二十分钟。")
+        return session.result().model_dump_json()
+
+    result = run(model, search)
+    assert result.status == "completed"
+    assert result.findings[0].assessment.verdict == "SUPPORTED"
+
+
+def test_counter_scenario_questions_do_not_reject_matching_evidence():
+    """提示词要求 questions 写反证场景；这些字不能被当成主张自身的条件。"""
+
+    def judge(evidence):
+        return planned([item["evidence_id"] for item in evidence],
+                       scenario="工作日早上", reason="周一早上的材料描述该场景不需排队。")
+
+    async def model(prompt, task):
+        state = json.loads(task)
+        if prompt.startswith("# Crowd Plan"):
+            plan = make_plan("c0") | {
+                "scenario": "工作日早上",
+                "questions": ["工作日早上是否需要排队？", "周末前往的游客是否反映排队很久？"],
+            }
+            return json.dumps([plan])
+        return json.dumps([{"claim_id": "c0", "assessment": judge(evidence_of(state))}])
+
+    async def search(session, *args):
+        await read(session, published_at=date(2026, 8, 17), content="周一早上入场无需排队。")
+        return session.result().model_dump_json()
+
+    result = run(model, search)
+    assert result.status == "completed"
+    assert result.findings[0].assessment is not None
+    assert result.findings[0].assessment.verdict == "SUPPORTED"
