@@ -203,3 +203,57 @@ def test_subgraph_schemas_expose_only_input_and_final_result():
     graph = build_placeholder_subgraph("fact")
     assert set(graph.get_input_jsonschema()["properties"]) == {"claims", "context"}
     assert set(graph.get_output_jsonschema()["properties"]) == {"result"}
+
+
+# 四类判定的完整载荷；字段值全部偏离默认值，子类字段一旦在 dict 往返中丢失就会暴露。
+ASSESSMENTS = {
+    "fact": {
+        "target": "示例公园", "time_scope": "2026-10-01 至 2026-10-07，Asia/Shanghai",
+        "verdict": "SUPPORTED", "confidence": 0.8, "evidence_sufficient": True,
+        "reason": "官方公告支持国庆免费开放。", "conditions": [], "supporting_evidence": ["e1"],
+        "counter_evidence": [], "context_evidence": ["e1"],
+        "dimensions": {"authority": 0.9, "directness": 0.8, "recency": 0.7,
+                       "context_match": 0.8, "independence": None},
+        "remaining_gaps": [{"question": "节假日是否同样开放？", "preferred_source": "OFFICIAL",
+                            "reason": "尚缺节假日公告。"}],
+    },
+    "route": {
+        "kind": "route", "target": "地铁站到园区入口", "time_scope": "当前",
+        "verdict": "MISMATCHED", "confidence": 0.9, "evidence_sufficient": True,
+        "reason": "实测步行 18 分钟，与主张的 5 分钟冲突。", "conditions": [],
+        "supporting_evidence": [], "counter_evidence": ["e1"], "context_evidence": ["e1"],
+        "claimed_seconds": 300.0, "measured_seconds": 1080.0, "transport_mode": "WALK",
+        "distance_meters": 1350.0, "tolerance_seconds": 120.0,
+    },
+    "crowd": {
+        "kind": "crowd", "target": "周末上午的入口排队", "time_scope": "2026 年 9 月",
+        "verdict": "SCENARIO_ONLY", "confidence": 0.6, "evidence_sufficient": True,
+        "reason": "仅工作日上午不拥挤。", "conditions": ["工作日上午"], "supporting_evidence": ["e1"],
+        "counter_evidence": [], "context_evidence": ["e1"],
+        "scenario": "周末上午", "evidence_time_coverage": "2026-09 工作日评价",
+    },
+    "experience": {
+        "kind": "experience", "target": "园区观赏日落的体验", "time_scope": "2026 年 9 月",
+        "verdict": "DIVERGENT", "confidence": 0.5, "evidence_sufficient": True,
+        "reason": "近期来源对日落观感分歧明显。", "conditions": [], "supporting_evidence": ["e1"],
+        "counter_evidence": ["e2"], "context_evidence": [], "source_agreement": 0.4,
+    },
+}
+
+
+@pytest.mark.parametrize("kind", list(ASSESSMENTS))
+def test_assessment_union_round_trip_keeps_every_subclass_field(kind):
+    payload = ASSESSMENTS[kind]
+    finding = ClaimFinding(claim_id="claim_001", summary="判定", assessment=payload)
+
+    dump = finding.model_dump(mode="json")
+    # 序列化必须原样吐出该子类的全部字段：Fact 不多出 kind，其余三类带上 kind。
+    assert dump["assessment"] == payload
+    assert ClaimFinding.model_validate(dump) == finding
+
+
+@pytest.mark.parametrize("kind", list(ASSESSMENTS))
+def test_every_category_rejects_definite_verdict_without_enough_evidence(kind):
+    payload = ASSESSMENTS[kind] | {"evidence_sufficient": False, "confidence": None}
+    with pytest.raises(ValidationError):
+        ClaimFinding(claim_id="claim_001", summary="判定", assessment=payload)
