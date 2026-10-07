@@ -2,7 +2,7 @@
 
 import asyncio
 from collections.abc import Mapping
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import logging
 from uuid import uuid4
 
@@ -64,13 +64,21 @@ def build_verification_graph(
 
     async def run_subgraph(state: BranchInput, runtime: Runtime[VerificationCapabilities]):
         name = state["graph_name"]
+        budget = runtime.context.run_budget
+        # 子图硬超时不得超过运行级总超时，否则慢子图会在总预算耗尽后仍各耗满一次硬超时。
+        timeout = runtime.context.subgraph_timeout_seconds
+        if budget is not None:
+            timeout = min(timeout, budget.timeout_seconds)
         try:
             # 子图获得独立副本，内部选择和修改不会改变其他分支的材料。
             payload: SubgraphInput = {
                 "claims": [claim.model_copy(deep=True) for claim in state["claims"]],
                 "context": state["context"].model_copy(deep=True),
             }
-            async with asyncio.timeout(runtime.context.subgraph_timeout_seconds):
+            # 子图内部截止时间以主图的硬超时为准，避免子图在总预算耗尽后仍各耗满一次硬超时。
+            if budget is not None:
+                budget.deadline_at = min(budget.deadline_at, datetime.now(timezone.utc) + timedelta(seconds=timeout))
+            async with asyncio.timeout(timeout):
                 output = await registered[name].ainvoke(payload, context=runtime.context)
             if "result" not in output:
                 raise KeyError("result")
@@ -83,6 +91,10 @@ def build_verification_graph(
                 raise ValueError("子图引用了未提交的主张")
             if any(finding.claim_id not in selected for finding in result.findings):
                 raise ValueError("子图发现未关联其选择的主张")
+        except TimeoutError:
+            # 超时必须记为执行失败，不能伪装成证据不足：两者对用户含义不同。
+            logger.warning("Verification subgraph %s timed out after %.1fs", name, timeout)
+            result = SubgraphResult(graph_name=name, status="failed", error=f"TimeoutError: 子图超过运行预算 {timeout:g} 秒")
         except Exception as error:
             # 子图失败单独记录，其他分支仍能完成并进入汇总。
             logger.exception("Verification subgraph %s failed", name)

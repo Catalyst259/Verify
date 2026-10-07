@@ -36,10 +36,17 @@ class VerificationInput(BaseModel):
 
 
 class PlaceReference(BaseModel):
-    """地点来源返回的标识；未接入地点解析时保持为空。"""
+    """地点来源解析出的具体 POI；解析失败或未接入地点解析时，context 中保持为 None。
+
+    reference 是来源侧的标识，source 标记解析来源以便追溯。纬度经度为 WGS84，
+    缺失表示该来源没给出坐标，调用方不得自行折算或猜测。
+    """
 
     name: str
     reference: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    source: str | None = None
 
 
 class VerificationContext(BaseModel):

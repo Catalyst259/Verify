@@ -9,6 +9,7 @@ from langgraph.runtime import Runtime
 from pydantic import TypeAdapter
 from pydantic_core import to_json
 
+from ...budget import BROWSER_CONCURRENCY, remaining
 from ...capabilities import VerificationCapabilities
 from ...models import ClaimFinding, SubgraphResult
 from ...state import SubgraphInput, SubgraphOutput
@@ -17,10 +18,6 @@ from .model import MAX_ROUNDS, FactPlan, ValidateResult
 from .prompts import load_system_prompt
 from .search import SearchSession
 from .state import FactClaimState, FactState, PlanState, ValidateState
-
-
-def remaining(deadline: datetime) -> float:
-    return max(0, (deadline - datetime.now(timezone.utc)).total_seconds())
 
 
 def replace_claim(claim: FactClaimState, **changes) -> FactClaimState:
@@ -96,7 +93,9 @@ async def search(state: FactState, runtime: Runtime[VerificationCapabilities]) -
     # 从剩余时间中预留三成给本轮 Validate，预留量最多为 30 秒。
     left = remaining(state["deadline_at"])
     deadline = state["deadline_at"] - timedelta(seconds=min(30, left * 0.3))
-    semaphore = asyncio.Semaphore(3)
+    # 运行级预算由主图提供并跨子图共享；直接调用子图时退回同上限的局部槽位。
+    budget = runtime.context.run_budget
+    semaphore = budget.browser_slots if budget is not None else asyncio.Semaphore(BROWSER_CONCURRENCY)
     system_prompt = load_system_prompt("search")
 
     async def search_claim(claim_id: str):

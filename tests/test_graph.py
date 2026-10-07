@@ -10,7 +10,7 @@ from backend.extraction.models import ClaimExtractionResult
 from backend.storage.repository import StorageRepository
 from backend.verification.capabilities import VerificationCapabilities
 from backend.verification.models import (
-    ClaimFinding, Evidence, PlaceReference, SubgraphResult, VerificationInput,
+    ClaimFinding, Evidence, FactAssessment, PlaceReference, SubgraphResult, VerificationInput,
 )
 from backend.verification.service import VerificationService
 from backend.verification.state import SubgraphState
@@ -184,3 +184,58 @@ def test_place_and_evidence_dependencies_reach_subgraph_runtime(tmp_path):
     assert run.status == "completed"
     assert calls == ["公园开放信息"]
     assert run.subgraph_results["custom"].findings[0].evidence[0].url == "https://example.com/evidence"
+
+
+def test_failed_place_resolution_is_not_a_confirmed_poi(tmp_path):
+    """解析失败只表示没有地点概念；子图不得据此认定目标 POI 已确认。"""
+
+    async def unresolvable(name):
+        return None
+
+    async def extract(*args):
+        return extracted()
+
+    async def check(state: SubgraphState):
+        assert state["context"].resolved_place is None
+        assert state["context"].target_place == "公园"
+        return {"result": SubgraphResult(graph_name="custom", status="completed", selected_claim_ids=[])}
+
+    verification = service(
+        tmp_path, extract, subgraphs={"custom": subgraph("custom", check)},
+        capabilities=VerificationCapabilities(place_resolver=unresolvable),
+    )
+    run = asyncio.run(verification.run(VerificationInput(target_place="公园", text="免费开放，周末游客少")))
+    assert run.status == "completed"
+    assert run.context.resolved_place is None
+
+
+def test_timed_out_subgraph_reports_failure_while_insufficient_evidence_is_a_completed_verdict(tmp_path):
+    """超时是执行失败，证据不足是已完成的判定；用户可见的区分必须落在结果状态上。"""
+
+    async def extract(*args):
+        return extracted()
+
+    async def stalled(state: SubgraphState):
+        await asyncio.sleep(10)
+        return {"result": SubgraphResult(graph_name="stalled", status="completed", selected_claim_ids=["claim_001"])}
+
+    async def insufficient(state: SubgraphState):
+        return {"result": SubgraphResult(
+            graph_name="insufficient", status="completed", selected_claim_ids=["claim_001"],
+            findings=[ClaimFinding(claim_id="claim_001", summary="证据不足，未形成结论", assessment=FactAssessment(
+                target="公园", time_scope="当前", verdict="UNVERIFIED", confidence=None,
+                evidence_sufficient=False, reason="未找到权威来源。",
+                dimensions=dict.fromkeys(["authority", "directness", "recency", "context_match", "independence"]),
+            ))],
+        )}
+
+    verification = service(
+        tmp_path, extract, subgraphs={"stalled": subgraph("stalled", stalled), "insufficient": subgraph("insufficient", insufficient)},
+        capabilities=VerificationCapabilities(subgraph_timeout_seconds=0.05),
+    )
+    run = asyncio.run(verification.run(VerificationInput(target_place="公园", text="免费开放，周末游客少")))
+    assert run.subgraph_results["stalled"].status == "failed"
+    assert "TimeoutError" in run.subgraph_results["stalled"].error
+    assert run.subgraph_results["insufficient"].status == "completed"
+    assert run.subgraph_results["insufficient"].findings[0].assessment.verdict == "UNVERIFIED"
+    assert run.status == "partial"
