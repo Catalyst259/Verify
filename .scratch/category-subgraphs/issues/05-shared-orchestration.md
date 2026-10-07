@@ -27,6 +27,14 @@ Status: open
   → 所以第二个注入点的正确抽象层级是「**为一条 claim 产出证据**」，不是「**跑一个 browser-use agent**」。骨架只定义前者；`FACT`/`EXPERIENCE`/`CROWD` 的实现内部用浏览器，`ROUTE` 的实现内部用地图调用。
 - `facts/model.py`（`FactType` / `FactPlan` / `FactEvidence` / `SearchResult` / `ValidateResult`）与 `facts/state.py`（`FactClaimState` / `FactState` / `PlanState` / `ValidateState`）**是 FACT 专用的**，不进骨架。各子图自带状态模型，形状对齐即可。
 
+**继承自 ticket 02 的收尾工作**：ticket 02 只把能力槽位的类型与默认实现泛化了，字段名仍是 `fact_llm` / `fact_search`，因为改名要动本 ticket 的文件。本 ticket 必须完成改名，并同步这三处调用点：
+
+- `backend/verification/subgraphs/facts/graph.py:55` → `runtime.context.llm`（或最终确定的中性名）
+- `backend/verification/subgraphs/facts/graph.py:94` → `runtime.context.search`
+- `backend/verification/subgraphs/facts/graph.py:168` → `runtime.context.search`
+
+改名后 `FACT` 的行为必须不变；这是「迁移后输出逐字节等价」验收线的一部分。
+
 骨架持有：节点编排、两轮回边判定、工具预算、失败收束、计时诊断、`SubgraphResult` 组装。
 
 预算基线沿用 `FACT` 现有上限（两轮、每轮 20 次工具调用、5 次查询、15 份新增证据）作为四类共同基线。`ROUTE` 不需要第二轮补搜时，其 `validate` 直接返回无缺口即可提前收束，**不为对称而强行跑满**。
