@@ -10,7 +10,7 @@ from backend.extraction.models import ClaimExtractionResult
 from backend.storage.repository import StorageRepository
 from backend.verification.capabilities import VerificationCapabilities
 from backend.verification.models import (
-    ClaimFinding, Evidence, FactAssessment, PlaceReference, SubgraphResult, VerificationInput,
+    ClaimFinding, Evidence, FactAssessment, FactDimensions, PlaceReference, SubgraphResult, VerificationInput,
 )
 from backend.verification.service import VerificationService
 from backend.verification.state import SubgraphState
@@ -238,3 +238,55 @@ def test_timed_out_subgraph_reports_failure_while_insufficient_evidence_is_a_com
     assert run.subgraph_results["insufficient"].status == "completed"
     assert run.subgraph_results["insufficient"].findings[0].assessment.verdict == "UNVERIFIED"
     assert run.status == "partial"
+
+
+def finding(claim_id, verdict, summary):
+    sufficient = verdict != "UNVERIFIED"
+    return ClaimFinding(claim_id=claim_id, summary=summary, assessment=FactAssessment(
+        target="公园", time_scope="当前", verdict=verdict, confidence=0.8 if sufficient else None,
+        evidence_sufficient=sufficient, reason=summary,
+        supporting_evidence=["e1"] if verdict == "SUPPORTED" else [],
+        counter_evidence=["e2"] if verdict == "CONTRADICTED" else [],
+        dimensions=FactDimensions(**dict.fromkeys(
+            ["authority", "directness", "recency", "context_match", "independence"]))))
+
+
+def conflicting_run(tmp_path, first, second):
+    async def extract(*args):
+        return extracted()
+
+    def handler(name, verdict, summary):
+        async def check(state, runtime):
+            return {"result": SubgraphResult(graph_name=name, status="completed",
+                                             selected_claim_ids=["claim_001"], findings=[finding("claim_001", verdict, summary)])}
+        return check
+
+    async def exercise():
+        svc = service(tmp_path, extract, subgraphs={
+            "first": subgraph("first", handler("first", first[0], first[1])),
+            "second": subgraph("second", handler("second", second[0], second[1]))})
+        return await svc.run(VerificationInput(target_place="公园", text="周末人少"))
+
+    return asyncio.run(exercise())
+
+
+def test_contradictory_findings_on_one_claim_are_reported_as_a_conflict(tmp_path):
+    run = conflicting_run(tmp_path, ("SUPPORTED", "官方称周末免费"), ("CONTRADICTED", "近期评价称周末很挤"))
+
+    assert len(run.conflicts) == 1
+    conflict = run.conflicts[0]
+    assert conflict.claim_id == "claim_001"
+    assert set(conflict.by_graph) == {"first", "second"}
+    assert "SUPPORTED" in conflict.detail and "CONTRADICTED" in conflict.detail
+
+
+def test_agreeing_findings_never_produce_a_conflict(tmp_path):
+    run = conflicting_run(tmp_path, ("SUPPORTED", "官方称免费"), ("CONDITIONAL", "部分区域收费"))
+
+    assert run.conflicts == []
+
+
+def test_unverified_and_conditional_never_conflict_with_anything(tmp_path):
+    run = conflicting_run(tmp_path, ("UNVERIFIED", "证据不足"), ("CONTRADICTED", "已有反证"))
+
+    assert run.conflicts == []

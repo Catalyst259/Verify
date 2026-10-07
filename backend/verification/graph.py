@@ -14,7 +14,7 @@ from langgraph.types import Send
 from backend.extraction.service import ClaimExtractionService
 
 from .capabilities import VerificationCapabilities
-from .models import SubgraphResult, VerificationContext, VerificationRun
+from .models import ClaimConflict, SubgraphResult, VerificationContext, VerificationRun, verdict_polarity
 from .state import BranchInput, GraphInput, GraphOutput, SubgraphInput, VerificationState
 from .subgraphs import VerificationSubgraph, default_subgraphs
 
@@ -106,6 +106,32 @@ def build_verification_graph(
             raise ValueError("子图结果未完整汇合")
         return {"stage": "collected"}
 
+    def detect_conflicts(results: dict[str, SubgraphResult]) -> list[ClaimConflict]:
+        """同一主张被多个子图选中时，找出结论互斥的发现对。
+
+        冲突只陈述事实——哪两条结论打架、各自依据什么——不替用户裁决。一致的多项发现是
+        正常情况，不产生矛盾；缺证据或有条件成立都不与任何结论互斥。
+        """
+        by_claim: dict[str, dict[str, ClaimFinding]] = {}
+        for name, result in results.items():
+            for finding in result.findings:
+                if finding.assessment is not None:
+                    by_claim.setdefault(finding.claim_id, {})[name] = finding
+        conflicts = []
+        for claim_id, picked in by_claim.items():
+            if len(picked) < 2:
+                continue
+            supporting = {name: item for name, item in picked.items()
+                          if verdict_polarity(item.assessment.verdict) == "supports"}
+            refuting = {name: item for name, item in picked.items()
+                        if verdict_polarity(item.assessment.verdict) == "refutes"}
+            if not (supporting and refuting):
+                continue
+            detail = "；".join(f"{name} 判「{item.assessment.verdict}」：{item.summary}"
+                              for name, item in sorted(picked.items()))
+            conflicts.append(ClaimConflict(claim_id=claim_id, by_graph=picked, detail=detail))
+        return conflicts
+
     def assemble_result(state: VerificationState):
         results = state["subgraph_results"]
         statuses = {result.status for result in results.values()}
@@ -119,11 +145,11 @@ def build_verification_graph(
             status = "failed"
         else:
             status = "partial"
-        # 汇总执行数据；逐主张评估与面向用户的报告尚未实现。
+        # 汇总执行数据；面向用户的报告由前端按结论、理由、证据三级展示。
         return {"stage": "finished", "result": VerificationRun(
             run_id=state["run_id"], context=state["context"], claims=state["claims"],
             subgraph_results={name: results[name] for name in registered if name in results},
-            status=status,
+            conflicts=detect_conflicts(results), status=status,
         )}
 
     builder = StateGraph(

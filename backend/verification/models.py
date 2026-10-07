@@ -231,6 +231,38 @@ class SubgraphResult(BaseModel):
     error: str | None = None
 
 
+VerdictPolarity = Literal["supports", "refutes", "conditional", "unknown"]
+
+# 四类词表到统一极性的映射；conditional 与 unknown 不构成矛盾，只有 supports 与 refutes 互斥。
+_VERDICT_POLARITY: dict[str, VerdictPolarity] = {
+    "SUPPORTED": "supports", "CONTRADICTED": "refutes", "CONDITIONAL": "conditional", "UNVERIFIED": "unknown",
+    "MATCHED": "supports", "MISMATCHED": "refutes", "CONDITION_MISMATCH": "conditional",
+    "NOT_SUPPORTED": "refutes", "SCENARIO_ONLY": "conditional",
+    "CONSISTENT": "supports", "DIVERGENT": "refutes", "SCENARIO_DEPENDENT": "conditional",
+}
+
+
+def verdict_polarity(verdict: str) -> VerdictPolarity:
+    """把各类别自己的词表折算成「支持 / 反驳 / 有条件 / 不确定」四档。
+
+    主图向所有子图广播完整主张，一条主张可能被多个子图选中并给出多项发现；要判矛盾就必须
+    先让四套互不兼容的词表可比，未知词表按不确定处理，不制造矛盾。
+    """
+    return _VERDICT_POLARITY.get(verdict, "unknown")
+
+
+class ClaimConflict(BaseModel):
+    """同一主张上结论不相容的多项发现。
+
+    只陈述矛盾，不替用户裁决哪条对——系统不具备这个判断力。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    claim_id: str
+    by_graph: dict[str, ClaimFinding] = Field(min_length=2)
+    detail: NonEmptyText
+
+
 class VerificationRun(BaseModel):
     """主图运行结果；status 描述执行情况，不代表主张真实性。"""
 
@@ -238,4 +270,5 @@ class VerificationRun(BaseModel):
     context: VerificationContext
     claims: list[Claim]
     subgraph_results: dict[str, SubgraphResult]
+    conflicts: list[ClaimConflict] = Field(default_factory=list)
     status: Literal["no_claims", "not_implemented", "completed", "partial", "failed"]
