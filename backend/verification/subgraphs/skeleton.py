@@ -23,6 +23,11 @@ from ..state import SubgraphInput, SubgraphOutput
 from .diagnostics import timed
 
 
+def shared_search(runtime: Runtime):
+    """默认取证器：复用运行级的网页取证能力；不取证的类别自行覆盖。"""
+    return runtime.context.search
+
+
 @dataclass(frozen=True)
 class CategorySpec:
     """一个类别区别于其他类别的全部内容；编排骨架对四类一视同仁。
@@ -30,6 +35,8 @@ class CategorySpec:
     check_plan 在补搜时校验计划没有改变原主张的类别或目标范围，违规应抛异常。
     check_assessment 校验判定回显的范围一致且证据充分性自洽，返回可写回的判定，违规应抛异常。
     needs_more 判定是否还要补搜一轮；各子图的缺口表达不同，因此由类别自己决定。
+    search_runner 决定本轮取证由谁执行——网页取证、地图调用或别的来源；返回 None 表示本次运行
+    不具备该类别的取证能力，骨架会记录为缺证据而不是失败。
     """
 
     name: str
@@ -44,6 +51,7 @@ class CategorySpec:
     check_plan: Callable[[Any, Any], None]
     check_assessment: Callable[[Any, Any], Any]
     needs_more: Callable[[Any, Runtime, datetime], bool]
+    search_runner: Callable[[Runtime], Any] = shared_search
 
 
 def build_category_subgraph(spec: CategorySpec):
@@ -109,7 +117,7 @@ def build_category_subgraph(spec: CategorySpec):
             return failed(state, "Plan", error)
 
     async def search(state, runtime: Runtime[VerificationCapabilities]) -> dict:
-        runner = runtime.context.search
+        runner = spec.search_runner(runtime)
         claims = {claim.claim_id: claim for claim in state["claims"]}
         # 从剩余时间中预留三成给本轮 Validate，预留量最多为 30 秒。
         left = remaining(state["deadline_at"])
