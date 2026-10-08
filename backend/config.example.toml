@@ -18,3 +18,21 @@ pacing_seconds = 4
 # 默认使用系统 Edge 和 backend/data/xiaohongshu-profile。
 # executable_path = "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"
 # profile_path = "backend/data/xiaohongshu-profile"
+
+# Valhalla 路线、多点矩阵与步行等时圈；服务方要求每秒最多一次请求、脚本单连接，
+# user_agent 必须能识别出本应用，referer 可选但建议填写。
+[valhalla]
+base_url = "https://valhalla1.openstreetmap.de"
+user_agent = "verify-app (+https://github.com/Catalyst259/Verify)"
+referer = "http://localhost:8000/"
+timeout_seconds = 30
+cache_size = 128
+min_request_interval_seconds = 1
+
+# 演示阶段的地点解析；生产应换成高德/百度等供应商。
+[nominatim]
+base_url = "https://nominatim.openstreetmap.org"
+# 公共服务的用量条款要求 User-Agent 能识别出本应用。
+user_agent = "verify-app nominatim (+https://github.com/Catalyst259/Verify)"
+referer = "http://localhost:8000/"
+timeout_seconds = 10

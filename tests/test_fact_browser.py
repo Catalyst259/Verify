@@ -122,7 +122,7 @@ def test_fact_search_reads_real_page_with_bounded_tools(monkeypatch, model, mode
         monkeypatch.setattr(llm, "load_config", lambda: config)
         monkeypatch.setattr(search, "load_config", lambda: config)
         result = asyncio.run(build_fact_subgraph().ainvoke(inputs(), context=VerificationCapabilities(
-            fact_search=tracked_search, subgraph_timeout_seconds=90,
+            search=tracked_search, subgraph_timeout_seconds=90,
         )))["result"]
 
     failed = mode in {"malformed", "missing_action_always"}

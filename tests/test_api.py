@@ -28,7 +28,7 @@ def test_upload_persists_and_submission_recovers_in_request_order(tmp_path):
     async def skip_fact(*args):
         return "[]"
 
-    capabilities = VerificationCapabilities(fact_llm=skip_fact)
+    capabilities = VerificationCapabilities(llm=skip_fact)
 
     async def extract(target_place, description_text, links, images):
         captured.update(target_place=target_place, text=description_text, links=links, images=images)
@@ -54,16 +54,16 @@ def test_upload_persists_and_submission_recovers_in_request_order(tmp_path):
         response = client.post("/api/verifications", json=payload)
         assert response.status_code == 200
         data = response.json()
-        assert set(data) == {"run_id", "context", "claims", "subgraph_results", "status"}
+        assert set(data) == {"run_id", "context", "claims", "subgraph_results", "conflicts", "status"}
         assert data["run_id"]
         assert data["context"]["target_place"] == payload["target_place"]
         assert data["context"]["checked_at"]
         assert data["context"]["resolved_place"] is None
-        assert data["status"] == "partial"
+        # status 描述执行情况，不代表主张真实性；四类子图都跑完即为 completed。
+        assert data["status"] == "completed"
         assert set(data["subgraph_results"]) == {"fact", "route", "crowd", "experience"}
-        assert data["subgraph_results"]["fact"]["status"] == "skipped"
-        assert all(data["subgraph_results"][name]["status"] == "not_implemented"
-                   for name in ("route", "crowd", "experience"))
+        assert all(data["subgraph_results"][name]["status"] == "skipped"
+                   for name in ("fact", "route", "crowd", "experience"))
         assert data["claims"] == [{
             "claim_id": "claim_001", "type": "CROWD", "content": "周末人少。",
             "sources": [{"source_type": "TEXT", "source_ref": None, "source_text": payload["text"]}],

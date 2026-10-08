@@ -11,3 +11,17 @@
 # 代码注释
 
 注释和 docstring 应让未参与设计讨论的维护者直接读懂：说明业务含义、必要约束、输入输出、异常及行为原因。不要写对话引用、助手的思考过程或依赖讨论上下文才能理解的表述。
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs for this repo live as markdown files under `.scratch/` in this repo. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage roles, each label string equal to its name. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.

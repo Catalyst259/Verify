@@ -32,6 +32,10 @@ def build_placeholder_subgraph(name: str) -> VerificationSubgraph:
 
 
 def default_subgraphs() -> dict[str, VerificationSubgraph]:
+    """四类主张各一个可执行子图；新增类别在此注册。"""
+    from .crowd.graph import build_crowd_subgraph
+    from .experience.graph import build_experience_subgraph
     from .facts.graph import build_fact_subgraph
-    return {"fact": build_fact_subgraph(),
-            **{name: build_placeholder_subgraph(name) for name in ("route", "crowd", "experience")}}
+    from .route.graph import build_route_subgraph
+    return {"fact": build_fact_subgraph(), "route": build_route_subgraph(),
+            "crowd": build_crowd_subgraph(), "experience": build_experience_subgraph()}

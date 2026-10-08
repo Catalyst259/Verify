@@ -8,7 +8,9 @@ from fastapi.staticfiles import StaticFiles
 from .api.error_handlers import register_exception_handlers
 from .api.routes import create_router
 from .extraction.agent import extract_claims, read_config
+from .sources.nominatim import NominatimPlaceResolver
 from .sources.xiaohongshu import XiaohongshuSource
+from .sources.valhalla import ValhallaRouting
 from .verification.capabilities import VerificationCapabilities
 from .storage.repository import StorageRepository
 from .verification.service import VerificationService
@@ -20,11 +22,15 @@ def create_app(
     data_directory: Path = ROOT / "backend/data", extractor=extract_claims,
     *, subgraphs=None, capabilities: VerificationCapabilities | None = None,
 ) -> FastAPI:
-    crawler = None
+    crawler = routing = places = None
     if capabilities is None:
-        crawler = XiaohongshuSource.from_config(read_config(), root=ROOT, data_directory=data_directory)
+        config = read_config()
+        crawler = XiaohongshuSource.from_config(config, root=ROOT, data_directory=data_directory)
+        routing = ValhallaRouting.from_config(config)
+        places = NominatimPlaceResolver.from_config(config)
         defaults = VerificationCapabilities()
-        capabilities = replace(defaults, evidence_sources={**defaults.evidence_sources, "xiaohongshu": crawler})
+        capabilities = replace(defaults, place_resolver=places, map_routing=routing,
+                               evidence_sources={**defaults.evidence_sources, "xiaohongshu": crawler})
     storage = StorageRepository(data_directory)
     verification = VerificationService(storage, extractor, subgraphs=subgraphs, capabilities=capabilities)
 
@@ -36,6 +42,10 @@ def create_app(
         finally:
             if crawler is not None:
                 await crawler.aclose()
+            if routing is not None:
+                await routing.aclose()
+            if places is not None:
+                await places.aclose()
 
     app = FastAPI(title="验一下 · Verification", lifespan=lifespan)
     register_exception_handlers(app)

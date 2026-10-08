@@ -2,7 +2,7 @@
 
 import asyncio
 from collections.abc import Mapping
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import logging
 from uuid import uuid4
 
@@ -14,7 +14,7 @@ from langgraph.types import Send
 from backend.extraction.service import ClaimExtractionService
 
 from .capabilities import VerificationCapabilities
-from .models import SubgraphResult, VerificationContext, VerificationRun
+from .models import ClaimConflict, SubgraphResult, VerificationContext, VerificationRun, verdict_polarity
 from .state import BranchInput, GraphInput, GraphOutput, SubgraphInput, VerificationState
 from .subgraphs import VerificationSubgraph, default_subgraphs
 
@@ -64,13 +64,21 @@ def build_verification_graph(
 
     async def run_subgraph(state: BranchInput, runtime: Runtime[VerificationCapabilities]):
         name = state["graph_name"]
+        budget = runtime.context.run_budget
+        # 子图硬超时不得超过运行级总超时，否则慢子图会在总预算耗尽后仍各耗满一次硬超时。
+        timeout = runtime.context.subgraph_timeout_seconds
+        if budget is not None:
+            timeout = min(timeout, budget.timeout_seconds)
         try:
             # 子图获得独立副本，内部选择和修改不会改变其他分支的材料。
             payload: SubgraphInput = {
                 "claims": [claim.model_copy(deep=True) for claim in state["claims"]],
                 "context": state["context"].model_copy(deep=True),
             }
-            async with asyncio.timeout(runtime.context.subgraph_timeout_seconds):
+            # 子图内部截止时间以主图的硬超时为准，避免子图在总预算耗尽后仍各耗满一次硬超时。
+            if budget is not None:
+                budget.deadline_at = min(budget.deadline_at, datetime.now(timezone.utc) + timedelta(seconds=timeout))
+            async with asyncio.timeout(timeout):
                 output = await registered[name].ainvoke(payload, context=runtime.context)
             if "result" not in output:
                 raise KeyError("result")
@@ -83,6 +91,10 @@ def build_verification_graph(
                 raise ValueError("子图引用了未提交的主张")
             if any(finding.claim_id not in selected for finding in result.findings):
                 raise ValueError("子图发现未关联其选择的主张")
+        except TimeoutError:
+            # 超时必须记为执行失败，不能伪装成证据不足：两者对用户含义不同。
+            logger.warning("Verification subgraph %s timed out after %.1fs", name, timeout)
+            result = SubgraphResult(graph_name=name, status="failed", error=f"TimeoutError: 子图超过运行预算 {timeout:g} 秒")
         except Exception as error:
             # 子图失败单独记录，其他分支仍能完成并进入汇总。
             logger.exception("Verification subgraph %s failed", name)
@@ -93,6 +105,32 @@ def build_verification_graph(
         if set(state["subgraph_results"]) != set(registered):
             raise ValueError("子图结果未完整汇合")
         return {"stage": "collected"}
+
+    def detect_conflicts(results: dict[str, SubgraphResult]) -> list[ClaimConflict]:
+        """同一主张被多个子图选中时，找出结论互斥的发现对。
+
+        冲突只陈述事实——哪两条结论打架、各自依据什么——不替用户裁决。一致的多项发现是
+        正常情况，不产生矛盾；缺证据或有条件成立都不与任何结论互斥。
+        """
+        by_claim: dict[str, dict[str, ClaimFinding]] = {}
+        for name, result in results.items():
+            for finding in result.findings:
+                if finding.assessment is not None:
+                    by_claim.setdefault(finding.claim_id, {})[name] = finding
+        conflicts = []
+        for claim_id, picked in by_claim.items():
+            if len(picked) < 2:
+                continue
+            supporting = {name: item for name, item in picked.items()
+                          if verdict_polarity(item.assessment.verdict) == "supports"}
+            refuting = {name: item for name, item in picked.items()
+                        if verdict_polarity(item.assessment.verdict) == "refutes"}
+            if not (supporting and refuting):
+                continue
+            detail = "；".join(f"{name} 判「{item.assessment.verdict}」：{item.summary}"
+                              for name, item in sorted(picked.items()))
+            conflicts.append(ClaimConflict(claim_id=claim_id, by_graph=picked, detail=detail))
+        return conflicts
 
     def assemble_result(state: VerificationState):
         results = state["subgraph_results"]
@@ -107,11 +145,11 @@ def build_verification_graph(
             status = "failed"
         else:
             status = "partial"
-        # 汇总执行数据；逐主张评估与面向用户的报告尚未实现。
+        # 汇总执行数据；面向用户的报告由前端按结论、理由、证据三级展示。
         return {"stage": "finished", "result": VerificationRun(
             run_id=state["run_id"], context=state["context"], claims=state["claims"],
             subgraph_results={name: results[name] for name in registered if name in results},
-            status=status,
+            conflicts=detect_conflicts(results), status=status,
         )}
 
     builder = StateGraph(
