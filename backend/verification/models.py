@@ -2,20 +2,44 @@ from datetime import date, datetime
 from typing import Annotated, Literal, Self
 
 from pydantic import (
-    BaseModel, ConfigDict, Discriminator, Field, StringConstraints, Tag, field_validator, model_validator,
+    BaseModel,
+    ConfigDict,
+    Discriminator,
+    Field,
+    StringConstraints,
+    Tag,
+    field_validator,
+    model_validator,
 )
-
 from pydantic.json_schema import SkipJsonSchema
 
 # 保留已有模型导入路径；提取模型由 extraction 模块定义。
 from backend.extraction.models import Claim, ClaimExtractionResult, Source
 
 __all__ = [
-    "Claim", "ClaimExtractionResult", "Source", "VerificationInput", "PlaceReference",
-    "VerificationContext", "Evidence", "ClaimFinding", "SubgraphResult", "VerificationRun",
-    "Assessment", "ClaimAssessment", "FactAssessment", "FactDimensions", "FactGap",
-    "FactSourceType", "FactVerdict", "RouteAssessment", "RouteVerdict", "CrowdAssessment",
-    "CrowdVerdict", "ExperienceAssessment", "ExperienceVerdict",
+    "Assessment",
+    "Claim",
+    "ClaimAssessment",
+    "ClaimExtractionResult",
+    "ClaimFinding",
+    "CrowdAssessment",
+    "CrowdVerdict",
+    "Evidence",
+    "ExperienceAssessment",
+    "ExperienceVerdict",
+    "FactAssessment",
+    "FactDimensions",
+    "FactGap",
+    "FactSourceType",
+    "FactVerdict",
+    "PlaceReference",
+    "RouteAssessment",
+    "RouteVerdict",
+    "Source",
+    "SubgraphResult",
+    "VerificationContext",
+    "VerificationInput",
+    "VerificationRun",
 ]
 
 NonEmptyText = Annotated[str, StringConstraints(min_length=1, pattern=r"\S")]

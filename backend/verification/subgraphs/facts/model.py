@@ -7,7 +7,6 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validato
 
 from ...models import Evidence, FactAssessment, FactSourceType, NonEmptyText
 
-
 FactType = Literal[
     "OPEN_STATUS", "PRICE_POLICY", "RESERVATION", "ACCESS_POLICY", "FACILITY", "TEMPORARY_EVENT",
 ]

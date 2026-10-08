@@ -1,13 +1,13 @@
 """搜索诊断必须保留失败现场，并区分页面错误与正常空结果。"""
 
 import asyncio
-from datetime import datetime, timedelta, timezone
 import json
+from datetime import datetime, timedelta, timezone
 
 import pytest
+from test_fact_workflow import assessment, make_plan, new_session, run
 
 from backend.verification.subgraphs.facts import search
-from test_fact_workflow import assessment, make_plan, new_session, run
 
 
 @pytest.mark.parametrize("status,challenge,ready,empty,category", [

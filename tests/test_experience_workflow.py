@@ -6,8 +6,8 @@
 """
 
 import asyncio
-from datetime import datetime, timezone
 import json
+from datetime import datetime, timezone
 
 import pytest
 

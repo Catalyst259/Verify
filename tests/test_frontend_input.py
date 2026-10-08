@@ -9,9 +9,10 @@ from backend.verification.capabilities import VerificationCapabilities
 
 # 默认 app 在模块导入时读取配置，测试用空配置避免读取本地模型密钥。
 with patch("backend.extraction.agent.read_config", return_value={}):
-    from backend import main
     from test_api import png
     from test_browser import serve
+
+    from backend import main
 
 
 pytestmark = pytest.mark.skipif(

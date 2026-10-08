@@ -1,7 +1,6 @@
 """ROUTE 的全量 State 与节点读写契约；形状与其他类别子图保持一致，便于骨架复用。"""
 
 from datetime import datetime
-from typing import TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from typing_extensions import Self

@@ -1,16 +1,15 @@
 """真实 Chromium 展示结构化核验结果；仅返回经模型验证的本地合成响应。"""
-from contextlib import contextmanager
 import json
 import os
+from contextlib import contextmanager
 from pathlib import Path
 
+import pytest
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
-import pytest
+from test_frontend_status import run_result, serve
 
 from backend.verification.models import VerificationRun
-from test_frontend_status import browser, run_result, serve
-
 
 pytestmark = pytest.mark.skipif(
     os.getenv("VERIFY_BROWSER_TESTS") != "1", reason="显式启用 Chromium 集成测试"
@@ -149,7 +148,7 @@ def test_assessments_and_execution_failures_remain_distinct(browser):
     with result_page(browser, outputs) as (page, submissions):
         for output, expected in zip(outputs, (
             "核验仅完成一部分", "核验失败", "核验尚未实现", "核验失败", "事实核验仅完成一部分"
-        )):
+        ), strict=True):
             submit_result(page, output)
             assert expected in page.locator("#status").inner_text()
             assert page.locator("#findings article.claim-result").count() == 1

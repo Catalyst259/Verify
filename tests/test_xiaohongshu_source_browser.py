@@ -1,20 +1,23 @@
 """System Chrome + intercepted synthetic pages; no real XHS account or public HTTP."""
 
 import asyncio
-from datetime import datetime, timedelta, timezone
 import os
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
 from backend.sources.xiaohongshu import (
-    HOME, XiaohongshuError, XiaohongshuLoginRequired, XiaohongshuSource, canonical_note_id,
+    HOME,
+    XiaohongshuError,
+    XiaohongshuLoginRequired,
+    XiaohongshuSource,
+    canonical_note_id,
 )
 from backend.verification.subgraphs.facts.model import FactEvidence, FactPlan
 from backend.verification.subgraphs.facts.search import SearchSession
 from backend.verification.subgraphs.facts.state import FactClaimState
-
 
 pytestmark = pytest.mark.skipif(os.getenv("VERIFY_BROWSER_TESTS") != "1",
                               reason="显式启用真实系统浏览器与合成页面验证")

@@ -3,13 +3,12 @@
 四类子图的编排一致，诊断格式也必须一致，否则汇总和前端无法统一读取。
 """
 
-from contextlib import contextmanager
-from datetime import datetime, timezone
 import asyncio
 import json
 import logging
+from contextlib import contextmanager
+from datetime import datetime, timezone
 from time import perf_counter
-
 
 logger = logging.getLogger(__name__)
 

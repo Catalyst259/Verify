@@ -2,15 +2,21 @@
 
 import asyncio
 
+import pytest
 from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
-import pytest
 
 from backend.extraction.models import ClaimExtractionResult
 from backend.storage.repository import StorageRepository
 from backend.verification.capabilities import VerificationCapabilities
 from backend.verification.models import (
-    ClaimFinding, Evidence, FactAssessment, FactDimensions, PlaceReference, SubgraphResult, VerificationInput,
+    ClaimFinding,
+    Evidence,
+    FactAssessment,
+    FactDimensions,
+    PlaceReference,
+    SubgraphResult,
+    VerificationInput,
 )
 from backend.verification.service import VerificationService
 from backend.verification.state import SubgraphState

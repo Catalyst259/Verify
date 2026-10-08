@@ -9,10 +9,10 @@ from .api.error_handlers import register_exception_handlers
 from .api.routes import create_router
 from .extraction.agent import extract_claims, read_config
 from .sources.nominatim import NominatimPlaceResolver
-from .sources.xiaohongshu import XiaohongshuSource
 from .sources.valhalla import ValhallaRouting
-from .verification.capabilities import VerificationCapabilities
+from .sources.xiaohongshu import XiaohongshuSource
 from .storage.repository import StorageRepository
+from .verification.capabilities import VerificationCapabilities
 from .verification.service import VerificationService
 
 ROOT = Path(__file__).resolve().parents[1]

@@ -6,8 +6,8 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import browser_use
-from pydantic import BaseModel
 import pytest
+from pydantic import BaseModel
 
 from backend.extraction import agent
 from backend.verification.subgraphs.facts import search

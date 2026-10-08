@@ -4,9 +4,9 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
-import pytest
 
 from backend.verification.models import VerificationRun
 

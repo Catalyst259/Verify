@@ -4,16 +4,16 @@ import asyncio
 import json
 import os
 
+import pytest
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-import pytest
 from playwright.sync_api import sync_playwright
+from test_browser import serve
+from test_fact_workflow import assessment, inputs, make_plan, new_session
 
 from backend.verification.capabilities import VerificationCapabilities
 from backend.verification.subgraphs.facts import llm, search
 from backend.verification.subgraphs.facts.graph import build_fact_subgraph
-from test_browser import serve
-from test_fact_workflow import assessment, inputs, make_plan, new_session
 
 pytestmark = pytest.mark.skipif(os.getenv("VERIFY_BROWSER_TESTS") != "1", reason="显式启用 Chromium 集成测试")
 

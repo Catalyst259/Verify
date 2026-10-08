@@ -1,9 +1,9 @@
 """提取、类别子图分发和结果汇总的主图。"""
 
 import asyncio
+import logging
 from collections.abc import Mapping
 from datetime import datetime, timedelta, timezone
-import logging
 from uuid import uuid4
 
 from langgraph.graph import END, START, StateGraph
@@ -14,7 +14,7 @@ from langgraph.types import Send
 from backend.extraction.service import ClaimExtractionService
 
 from .capabilities import VerificationCapabilities
-from .models import ClaimConflict, SubgraphResult, VerificationContext, VerificationRun, verdict_polarity
+from .models import ClaimConflict, ClaimFinding, SubgraphResult, VerificationContext, VerificationRun, verdict_polarity
 from .state import BranchInput, GraphInput, GraphOutput, SubgraphInput, VerificationState
 from .subgraphs import VerificationSubgraph, default_subgraphs
 
@@ -121,14 +121,14 @@ def build_verification_graph(
         for claim_id, picked in by_claim.items():
             if len(picked) < 2:
                 continue
-            supporting = {name: item for name, item in picked.items()
-                          if verdict_polarity(item.assessment.verdict) == "supports"}
-            refuting = {name: item for name, item in picked.items()
-                        if verdict_polarity(item.assessment.verdict) == "refutes"}
+            verdicts = {name: item.assessment.verdict
+                        for name, item in picked.items() if item.assessment is not None}
+            supporting = {name for name, verdict in verdicts.items() if verdict_polarity(verdict) == "supports"}
+            refuting = {name for name, verdict in verdicts.items() if verdict_polarity(verdict) == "refutes"}
             if not (supporting and refuting):
                 continue
-            detail = "；".join(f"{name} 判「{item.assessment.verdict}」：{item.summary}"
-                              for name, item in sorted(picked.items()))
+            detail = "；".join(f"{name} 判「{verdict}」：{picked[name].summary}"
+                              for name, verdict in sorted(verdicts.items()))
             conflicts.append(ClaimConflict(claim_id=claim_id, by_graph=picked, detail=detail))
         return conflicts
 

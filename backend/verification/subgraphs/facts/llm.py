@@ -4,8 +4,8 @@ import re
 
 from openai import AsyncOpenAI
 
-from backend.extraction.agent import load_config
 from backend.common.model_json import normalize_model_json
+from backend.extraction.agent import load_config
 
 
 async def complete(system_prompt: str, task: str) -> str:

@@ -1,24 +1,31 @@
 """browser-use 取证适配：工具预算和网页记录由代码持有，Agent 只选择动作。"""
 
 import asyncio
+import json
 from collections.abc import Awaitable, Callable, Mapping
 from datetime import date, datetime, timezone
-import json
 from time import perf_counter
 from urllib.parse import quote_plus, urlsplit
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict
 
-from backend.extraction.agent import load_config
 from backend.common.model_json import normalize_model_json
+from backend.extraction.agent import load_config
 from backend.sources.xiaohongshu import canonical_note_id
 from backend.verification.capabilities import EvidenceSource
 from backend.verification.models import FactSourceType
 
 from ..diagnostics import record, timed
 from .diagnostics import page_category
-from .model import MAX_EVIDENCE_PER_ROUND, MAX_QUERIES, MAX_RESULTS_PER_QUERY, MAX_TOOL_CALLS, FactEvidence, SearchResult
+from .model import (
+    MAX_EVIDENCE_PER_ROUND,
+    MAX_QUERIES,
+    MAX_RESULTS_PER_QUERY,
+    MAX_TOOL_CALLS,
+    FactEvidence,
+    SearchResult,
+)
 from .state import FactClaimState, FactRoundState
 
 

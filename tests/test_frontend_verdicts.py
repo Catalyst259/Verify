@@ -2,13 +2,12 @@
 import os
 from pathlib import Path
 
+import pytest
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
-import pytest
+from test_frontend_status import serve
 
 from backend.verification.models import VerificationRun
-from test_frontend_status import browser, serve
-
 
 pytestmark = pytest.mark.skipif(
     os.getenv("VERIFY_BROWSER_TESTS") != "1", reason="显式启用 Chromium 集成测试"
