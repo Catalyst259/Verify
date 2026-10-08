@@ -87,10 +87,12 @@ def build_category_subgraph(spec: CategorySpec):
 
     def initialize(state: SubgraphInput, runtime: Runtime[VerificationCapabilities]) -> dict:
         timeout = runtime.context.subgraph_timeout_seconds
+        if runtime.context.run_budget is not None:
+            timeout = min(timeout, remaining(runtime.context.run_budget.deadline_at))
         return {
             "selected_claim_ids": [], "active_claim_ids": [claim.claim_id for claim in state["claims"]],
             "claim_states": {}, "notes": [], "diagnostics": [], "error": None,
-            # 在主图硬超时前留出结果组装和浏览器清理时间。
+            # 以共享预算的剩余量为准，在主图硬超时前留出组装和清理时间。
             "deadline_at": datetime.now(timezone.utc) + timedelta(seconds=max(0, timeout - min(5, timeout * 0.1))),
         }
 
@@ -134,28 +136,37 @@ def build_category_subgraph(spec: CategorySpec):
                                         evidence_sources=runtime.context.evidence_sources)
             error = None
             queued_at = perf_counter()
-            async with semaphore:
-                with timed(session.diagnostics, "search_claim", **session.diagnostic_context,
-                           queue_ms=round((perf_counter() - queued_at) * 1000, 3),
-                           remaining_ms=round(remaining(deadline) * 1000, 3)) as timing:
-                    try:
-                        if runner is None:
-                            session.update_round(search_error="本次运行未提供搜索能力")
-                        else:
-                            if remaining(deadline) <= 0:
-                                raise TimeoutError("Search 已到内部截止时间")
-                            task = to_json({
-                                "claim": claims[claim_id], "context": state["context"], "claim_state": old,
-                                "round_number": session.round.round_number,
-                                "remaining_budget": session.remaining_budget(), "deadline_at": deadline,
-                            }).decode()
-                            async with asyncio.timeout(remaining(deadline)):
+            started = False
+            with timed(session.diagnostics, "search_claim", **session.diagnostic_context,
+                       remaining_ms=round(remaining(deadline) * 1000, 3)) as timing:
+                try:
+                    if runner is None:
+                        session.update_round(search_error="本次运行未提供搜索能力")
+                    else:
+                        # 排队也占用 Search 预算，必须及时让出 Validate 和结果汇总的时间。
+                        async with asyncio.timeout(remaining(deadline)):
+                            async with semaphore:
+                                started = True
+                                timing.update(queue_ms=round((perf_counter() - queued_at) * 1000, 3),
+                                              remaining_ms=round(remaining(deadline) * 1000, 3))
+                                if remaining(deadline) <= 0:
+                                    raise TimeoutError("Search 已到内部截止时间")
+                                task = to_json({
+                                    "claim": claims[claim_id], "context": state["context"], "claim_state": old,
+                                    "round_number": session.round.round_number,
+                                    "remaining_budget": session.remaining_budget(), "deadline_at": deadline,
+                                }).decode()
                                 raw = await runner(session, system_prompt, task)
-                            session.result(raw)
-                    except Exception as cause:
-                        error = f"Search: {type(cause).__name__}: {str(cause) or '阶段执行未完成'}"
-                        timing.update(outcome="timeout" if isinstance(cause, TimeoutError) else "error", error=error)
-                        session.update_round(search_error="; ".join(filter(None, [session.round.search_error, error])))
+                                session.result(raw)
+                except Exception as cause:
+                    detail = str(cause) or "阶段执行未完成"
+                    if isinstance(cause, TimeoutError) and not str(cause):
+                        detail = "取证超时" if started else "等待取证槽位超时"
+                    error = f"Search: {type(cause).__name__}: {detail}"
+                    timing.update(outcome="timeout" if isinstance(cause, TimeoutError) else "error", error=error)
+                    session.update_round(search_error="; ".join(filter(None, [session.round.search_error, error])))
+                finally:
+                    timing.setdefault("queue_ms", round((perf_counter() - queued_at) * 1000, 3))
             return claim_id, replace_claim(old, evidence=[*old.evidence, *session.evidence],
                                           rounds=[*old.rounds, session.round], error=error), session.diagnostics
 

@@ -2,7 +2,7 @@
 
 import asyncio
 from collections.abc import Mapping
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import logging
 from uuid import uuid4
 
@@ -13,6 +13,7 @@ from langgraph.types import Send
 
 from backend.extraction.service import ClaimExtractionService
 
+from .budget import remaining
 from .capabilities import VerificationCapabilities
 from .models import ClaimConflict, SubgraphResult, VerificationContext, VerificationRun, verdict_polarity
 from .state import BranchInput, GraphInput, GraphOutput, SubgraphInput, VerificationState
@@ -65,19 +66,18 @@ def build_verification_graph(
     async def run_subgraph(state: BranchInput, runtime: Runtime[VerificationCapabilities]):
         name = state["graph_name"]
         budget = runtime.context.run_budget
-        # 子图硬超时不得超过运行级总超时，否则慢子图会在总预算耗尽后仍各耗满一次硬超时。
+        # 图片提取和地点解析已消耗运行预算，分支只能使用绝对截止时间前的剩余量。
         timeout = runtime.context.subgraph_timeout_seconds
         if budget is not None:
-            timeout = min(timeout, budget.timeout_seconds)
+            timeout = min(timeout, remaining(budget.deadline_at))
         try:
+            if timeout <= 0:
+                raise TimeoutError("运行预算已耗尽")
             # 子图获得独立副本，内部选择和修改不会改变其他分支的材料。
             payload: SubgraphInput = {
                 "claims": [claim.model_copy(deep=True) for claim in state["claims"]],
                 "context": state["context"].model_copy(deep=True),
             }
-            # 子图内部截止时间以主图的硬超时为准，避免子图在总预算耗尽后仍各耗满一次硬超时。
-            if budget is not None:
-                budget.deadline_at = min(budget.deadline_at, datetime.now(timezone.utc) + timedelta(seconds=timeout))
             async with asyncio.timeout(timeout):
                 output = await registered[name].ainvoke(payload, context=runtime.context)
             if "result" not in output:

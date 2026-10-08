@@ -132,11 +132,11 @@ def test_drag_upload_to_real_browser_agent(tmp_path, monkeypatch, with_links, mo
             output = json.loads(page.locator("#claims").text_content())
             assert output["context"]["target_place"] == "测试公园"
             assert output["run_id"]
-            assert output["status"] == "partial"
-            assert output["subgraph_results"]["fact"]["status"] == "skipped"
+            assert output["status"] == "completed"
+            assert all(result["status"] == "skipped" for result in output["subgraph_results"].values())
             assert set(output["subgraph_results"]) == {"fact", "route", "crowd", "experience"}
-            assert "本次未执行事实核验" in page.locator("#status").inner_text()
-            assert "路线、人流、体验核验尚未实现" in page.locator("#status").inner_text()
+            assert "本次未执行事实、路线、人流、体验核验" in page.locator("#status").inner_text()
+            assert "核验尚未实现" not in page.locator("#status").inner_text()
             assert output["claims"][0]["claim_id"] == "claim_001"
             assert requests[0]["link"] == links
             assert requests[0]["text"] == "工作日上午人少"
@@ -144,7 +144,7 @@ def test_drag_upload_to_real_browser_agent(tmp_path, monkeypatch, with_links, mo
             assert page_visits == ([1, 2] if with_links else [])
             for call in provider_calls:
                 messages = call["messages"]
-                assert Path("prompt.md").read_text() in messages[0]["content"]
+                assert Path("prompt.md").read_text(encoding="utf-8") in messages[0]["content"]
                 image_content = next(message["content"] for message in messages
                                      if isinstance(message["content"], list)
                                      and message["content"][0].get("text", "").startswith("用户上传图片"))
