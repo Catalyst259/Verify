@@ -78,6 +78,9 @@ def test_fact_search_reads_real_page_with_bounded_tools(monkeypatch, model, mode
             elif session.round.tool_calls == 2 and (mode == "missing_action_always" or
                                                     (mode == "missing_action_once" and not missing_action_responses)):
                 del content["action"]
+        if model == "deepseek-flash" and isinstance(content, list):
+            assert body["response_format"] == {"type": "json_object"}
+            content = {"items": content}
         serialized = json.dumps(content)
         if model == "deepseek-flash" and isinstance(content, dict) and "action" in content:
             thinking = "Scripted response\nSecond line\rThird line\tEnd."
@@ -89,7 +92,7 @@ def test_fact_search_reads_real_page_with_bounded_tools(monkeypatch, model, mode
                 json.loads(serialized)
             assert json.loads(serialized, strict=False)["thinking"] == thinking
             literal_control_responses.append(1)
-        if isinstance(content, dict) and "action" not in content:
+        if isinstance(content, dict) and "thinking" in content and "action" not in content:
             assert json.loads(serialized) == content
             with pytest.raises(ValidationError) as error:
                 AgentOutput.model_validate_json(serialized)

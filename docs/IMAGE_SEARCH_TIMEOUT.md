@@ -20,6 +20,13 @@
 
 默认 240 秒预算、浏览器并发数和来源访问限制均未扩大。
 
+真实复测中，超时修复保留了已取得的材料，但又暴露了 Fact Validate 返回无效 JSON
+的问题。DeepSeek 的 Plan/Validate 现使用 JSON mode，把业务数组装在唯一的 `items`
+字段内传输，随后解包为原有数组交给节点校验。空数组合法，额外字段、错误结构和
+截断响应仍拒绝，不增加自动重试或延长预算。其他兼容模型保持原数组协议。
+传输格式依据 [DeepSeek JSON Output 文档](https://api-docs.deepseek.com/guides/json_mode/)；
+原有主张范围、证据引用和判定一致性校验继续执行。
+
 ## 回归覆盖
 
 `tests/test_verification_deadlines.py` 覆盖：
@@ -35,6 +42,8 @@
 旧版图片浏览器测试还沿用了其他类别尚未实现时的状态断言；现已按照四类子图
 均可执行、且本测试模型选择跳过的实际契约更新，保留图片顺序、多模态输入和页面读取检查。
 测试读取中文提示词文件时显式指定 UTF-8，避免 Windows 默认 GBK 解码失败。
+`tests/test_category_model_json.py` 另覆盖 DeepSeek 请求参数、数组解包、空结果、
+截断与无效结构拒绝，以及真实类别图的 Plan/Validate 传输和后续校验。
 
 运行：
 

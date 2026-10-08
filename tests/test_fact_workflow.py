@@ -288,11 +288,11 @@ def test_openai_call_uses_config_and_preserves_array_protocol(monkeypatch, finis
     def respond(request):
         captured.append(request)
         return httpx.Response(200, json={"id": "test", "object": "chat.completion", "created": 0,
-            "model": "deepseek-flash", "choices": [{"index": 0, "finish_reason": finish_reason,
+            "model": "compatible-model", "choices": [{"index": 0, "finish_reason": finish_reason,
                                                      "message": {"role": "assistant", "content": content}}]})
 
     monkeypatch.setattr(llm, "load_config", lambda: {"api_key": "test-only", "base_url": "https://model.test/v1",
-                                                     "model": "deepseek-flash", "timeout_seconds": 10})
+                                                     "model": "compatible-model", "timeout_seconds": 10})
     monkeypatch.setattr(llm, "AsyncOpenAI", lambda **kwargs: AsyncOpenAI(
         **kwargs, http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond))))
     if finish_reason == "stop":
@@ -305,8 +305,8 @@ def test_openai_call_uses_config_and_preserves_array_protocol(monkeypatch, finis
     assert request.headers["authorization"] == "Bearer test-only"
     body = json.loads(request.content)
     assert body["messages"] == [{"role": "system", "content": "系统指令"}, {"role": "user", "content": "业务状态"}]
-    assert body["model"] == "deepseek-flash" and "response_format" not in body
-    assert body["thinking"] == {"type": "disabled"} and len(captured) == 1
+    assert body["model"] == "compatible-model" and "response_format" not in body
+    assert "thinking" not in body and len(captured) == 1
 
 
 @pytest.mark.parametrize("invalid", [
@@ -336,11 +336,11 @@ def test_fenced_model_response_through_plan_and_validate(monkeypatch, invalid):
         if invalid is not None and step == "plan":
             content = invalid
         return httpx.Response(200, json={"id": "test", "object": "chat.completion", "created": 0,
-            "model": "deepseek-flash", "choices": [{"index": 0, "finish_reason": "stop",
+            "model": "compatible-model", "choices": [{"index": 0, "finish_reason": "stop",
                                                      "message": {"role": "assistant", "content": content}}]})
 
     monkeypatch.setattr(llm, "load_config", lambda: {"api_key": "test-only", "base_url": "https://model.test/v1",
-                                                     "model": "deepseek-flash", "timeout_seconds": 10})
+                                                     "model": "compatible-model", "timeout_seconds": 10})
     monkeypatch.setattr(llm, "AsyncOpenAI", lambda **kwargs: AsyncOpenAI(
         **kwargs, http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond))))
 
