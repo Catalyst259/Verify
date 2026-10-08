@@ -3,6 +3,7 @@ import base64
 import json
 import os
 import tomllib
+import warnings
 from pathlib import Path
 
 from pydantic import ValidationError
@@ -12,6 +13,7 @@ from backend.common.model_json import normalize_model_json
 from backend.storage.models import StoredImage
 
 from .models import ClaimExtractionResult
+from .materials import LinkMaterial
 
 # 必须在导入 browser-use 前设置，保持本地运行。
 os.environ.setdefault("ANONYMIZED_TELEMETRY", "false")
@@ -38,8 +40,11 @@ def load_config():
 
 
 async def extract_claims(
-    target_place: str, description_text: str | None, links: list[str], images: list[StoredImage]
+    target_place: str, description_text: str | None, links: list[str], images: list[StoredImage], *,
+    link_materials: tuple[LinkMaterial, ...] = (),
 ) -> ClaimExtractionResult:
+    if [item.original_url for item in link_materials] != links:
+        raise ExtractionFailed("链接材料未完整读取，不能使用未登录浏览器代替")
     config = load_config()
     from browser_use import Agent, Browser, ChatOpenAI, Tools
     from browser_use.llm.messages import ContentPartImageParam, ContentPartTextParam, ImageURL, UserMessage
@@ -57,6 +62,19 @@ async def extract_claims(
                 media_type=item.mime_type,
             )),
         ])
+
+    seen_notes = set()
+    for material in link_materials:
+        if material.canonical_url in seen_notes:
+            continue
+        seen_notes.add(material.canonical_url)
+        for index, data in enumerate(material.images, 1):
+            image_parts.extend([
+                ContentPartTextParam(text=f"小红书笔记配图 {index}，source_type = LINK，source_ref = {material.original_url}"),
+                ContentPartImageParam(image_url=ImageURL(
+                    url=f"data:image/png;base64,{base64.b64encode(data).decode()}", media_type="image/png",
+                )),
+            ])
 
     class ImageChatOpenAI(ChatOpenAI):
         async def ainvoke(self, messages, output_format=None, **kwargs):
@@ -92,13 +110,15 @@ async def extract_claims(
         headless=True,
         enable_default_extensions=False,
         executable_path=config["browser_executable_path"] or None,
-        # 分享短链可能跨域重定向；读取范围由 prompt.md 约束。无链接时禁止网页导航。
-        allowed_domains=None if links else ["no-links.invalid"],
+        # 链接材料由已登录的专用来源读取；提取阶段不再访问网页。
+        allowed_domains=["no-links.invalid"],
     )
     task = json.dumps({
         "target_place": target_place,
         "description_text": description_text,
         "links": links,
+        "link_materials": [{"source_ref": item.original_url, "title": item.title,
+                            "content": item.content, "image_count": len(item.images)} for item in link_materials],
         "images": [{"file_code": item.file_code, "mime_type": item.mime_type} for item in images],
     }, ensure_ascii=False)
     prompt = (Path(__file__).resolve().parents[2] / "prompt.md").read_text(encoding="utf-8")
@@ -129,4 +149,7 @@ async def extract_claims(
         except ValidationError as error:
             raise ExtractionFailed("Agent 返回了无效的提取结果") from error
     finally:
-        await browser.kill()
+        try:
+            await asyncio.wait_for(browser.kill(), timeout=3)
+        except Exception:
+            warnings.warn("提取浏览器清理未在限定时间内完成", RuntimeWarning, stacklevel=2)

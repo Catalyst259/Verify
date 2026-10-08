@@ -39,9 +39,12 @@ def build_verification_graph(
             ),
         }
 
-    async def extract(state: GraphInput):
+    async def extract(state: GraphInput, runtime: Runtime[VerificationCapabilities]):
         """调用提取器，生成主张列表并更新 stage"""
-        result = await extraction.extract(**state["request"].model_dump())
+        budget = runtime.context.run_budget
+        result = await extraction.extract(**state["request"].model_dump(),
+                                          link_materials=runtime.context.link_materials,
+                                          deadline_at=budget.deadline_at if budget else None)
         return {"claims": result.claims, "stage": "extracted"}
 
     def after_extraction(state: VerificationState):

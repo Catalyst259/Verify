@@ -8,6 +8,7 @@ JSONL; signed detail links exist only inside the current query.
 import argparse
 import asyncio
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from datetime import date, datetime, timezone
 import json
 import logging
@@ -16,12 +17,15 @@ from pathlib import Path
 import re
 import sys
 from time import perf_counter
-from urllib.parse import parse_qs, urlencode, urlsplit
+from urllib.parse import parse_qs, urlencode, urljoin, urlsplit
 from uuid import uuid4
 import warnings
 
 from backend.verification.models import Evidence
 from backend.verification.subgraphs.facts.model import FactEvidence
+from backend.common.errors import LinkReadError
+from backend.common.xiaohongshu_links import allowed_navigation, canonical_note_id, valid_note_url
+from backend.extraction.materials import LinkMaterial
 
 
 HOME = "https://www.xiaohongshu.com/explore"
@@ -34,7 +38,6 @@ _NETWORK_ERRORS = {
     "net::ERR_SSL_PROTOCOL_ERROR", "net::ERR_CERT_AUTHORITY_INVALID", "net::ERR_CERT_DATE_INVALID",
     "net::ERR_BLOCKED_BY_CLIENT", "net::ERR_HTTP_RESPONSE_CODE_FAILURE", "net::ERR_EMPTY_RESPONSE",
 }
-_NOTE_PATH = re.compile(r"^/(?:explore|search_result|discovery/item)/([0-9a-fA-F]{24})/?$")
 Execute = Callable[..., Awaitable[dict]]
 BodyCache = dict[str, tuple[dict, datetime]]
 
@@ -101,21 +104,8 @@ class XiaohongshuAccessRestricted(XiaohongshuError):
     pass
 
 
-def canonical_note_id(url: str) -> str | None:
-    """Treat equivalent HTTP(S) input links as one ID, ignoring signed query tokens."""
-    if not isinstance(url, str) or any(char.isspace() or ord(char) < 32 for char in url):
-        return None
-    try:
-        parts = urlsplit(url)
-        if (parts.scheme not in {"http", "https"}
-                or parts.hostname not in {"xiaohongshu.com", "www.xiaohongshu.com"}
-                or parts.username is not None or parts.password is not None
-                or parts.port not in {None, {"http": 80, "https": 443}.get(parts.scheme)}):
-            return None
-    except ValueError:
-        return None
-    match = _NOTE_PATH.fullmatch(parts.path)
-    return match[1].lower() if match else None
+class XiaohongshuTimeout(XiaohongshuError):
+    pass
 
 
 def _published_at(value: str) -> date | datetime | None:
@@ -230,7 +220,7 @@ class XiaohongshuSource:
                 "elapsed_ms": round((perf_counter() - started) * 1000, 3),
             }))
             if expired:
-                raise XiaohongshuError("小红书网页导航超时：25秒内未完成 DOM 加载") from None
+                raise XiaohongshuTimeout("小红书网页导航超时：25秒内未完成 DOM 加载") from None
             detail = code or type(error).__name__
             raise XiaohongshuError(f"小红书网页导航失败（{detail}）") from None
         if response is not None and response.status in (401, 403, 429):
@@ -324,6 +314,208 @@ class XiaohongshuSource:
                 previous = stable
             await asyncio.sleep(0.5)
         raise XiaohongshuError("小红书详情正文未显示或未稳定，未将候选摘要作为证据")
+
+    async def _note_images(self, page, identity: str) -> tuple[bytes, ...]:
+        """逐张切换真实轮播图并截取可见图片；不读取应用状态或评论区图片。"""
+        from playwright.async_api import TimeoutError as BrowserTimeout
+
+        slider = page.locator('.note-container .note-slider').first
+        if await page.locator('.note-container video').count():
+            raise LinkReadError("暂不支持视频笔记，请提交图文笔记或截图", 422)
+        if not await slider.count():
+            # 发现媒体容器却无法识别轮播时不能把笔记当作无配图处理。
+            if await page.locator('.note-container .xhs-slider-container').count():
+                raise LinkReadError("笔记配图结构无法识别，未忽略配图继续核验")
+            return ()
+        indices = await slider.locator('.swiper-slide').evaluate_all(
+            "els => [...new Set(els.map(e => e.getAttribute('data-swiper-slide-index') ?? e.getAttribute('data-index')))]")
+        if not indices or any(index is None or not index.isdecimal() for index in indices):
+            raise LinkReadError("笔记配图序号无法识别")
+        indices = sorted({int(index) for index in indices})
+        if indices != list(range(len(indices))):
+            raise LinkReadError("笔记配图序号不完整")
+        active = slider.locator('.swiper-slide-active')
+
+        async def active_index():
+            await active.wait_for(state='visible', timeout=8000)
+            value = await active.get_attribute('data-swiper-slide-index')
+            return int(value if value is not None else await active.get_attribute('data-index'))
+
+        async def move(direction, expected):
+            button = page.locator(f'.note-container .slider-zoom-in .arrow-controller.{direction}').first
+            if not await button.count():
+                button = page.locator(f'.note-container .arrow-controller.{direction}').first
+            await button.click(timeout=8000)
+            await page.wait_for_function("""expected => {
+                const e = document.querySelector('.note-container .note-slider .swiper-slide-active');
+                return e && Number(e.getAttribute('data-swiper-slide-index') ?? e.getAttribute('data-index')) === expected;
+            }""", arg=expected, timeout=8000)
+
+        images = []
+        index = 0
+        try:
+            initial = await active_index()
+            if initial not in indices:
+                raise LinkReadError("笔记当前配图序号无效")
+            for previous in range(initial - 1, -1, -1):
+                await move('left', previous)
+            for index in indices:
+                await self._guard(page)
+                if canonical_note_id(page.url) != identity:
+                    raise LinkReadError("读取配图时页面切换到其他笔记")
+                if index:
+                    await move('right', index)
+                picture = active.locator('img').first
+                await picture.wait_for(state='visible', timeout=8000)
+                await page.wait_for_function("""() => {
+                    const e = document.querySelector('.note-container .note-slider .swiper-slide-active img');
+                    return e && e.complete && e.naturalWidth >= 32 && e.naturalHeight >= 32;
+                }""", timeout=8000)
+                if await active.locator('video').count():
+                    raise LinkReadError("暂不支持包含视频的笔记，请提交图文笔记或截图", 422)
+                images.append(await picture.screenshot(type='png', animations='disabled', timeout=8000,
+                    style='.arrow-controller, .fraction, .slider-pagination-container { visibility: hidden !important; }'))
+            await self._guard(page)
+            if canonical_note_id(page.url) != identity:
+                raise LinkReadError("读取配图时页面切换到其他笔记")
+        except BrowserTimeout:
+            raise LinkReadError(f"第 {index + 1} 张配图加载或切换超时，未忽略该图继续核验", 504) from None
+        return tuple(images)
+
+    async def _fetch_note_document(self, route) -> tuple[int, dict, bytes]:
+        """不自动跟随 HTTP 跳转，避免浏览器路由只拦截跳转链首个请求。"""
+        response = await route.fetch(max_redirects=0, timeout=25000)
+        try:
+            return response.status, response.headers, await response.body()
+        finally:
+            await response.dispose()
+
+    async def read_note(self, url: str, *, deadline_at: datetime | None = None,
+                        _note_cache: dict[str, LinkMaterial] | None = None) -> LinkMaterial:
+        """读取用户输入笔记，含锁等待的超时；原材料缓存仅由单次运行持有。"""
+        if not valid_note_url(url):
+            raise LinkReadError("必须是小红书笔记链接或 xhslink.com 分享短链", 422)
+        if deadline_at is not None and (deadline_at.tzinfo is None or deadline_at.utcoffset() is None):
+            raise ValueError("小红书读取截止时间必须带时区")
+        expected = canonical_note_id(url)
+        if _note_cache is not None and expected in _note_cache:
+            return replace(_note_cache[expected], original_url=url)
+        timeout = min(self.timeout_seconds, (deadline_at - datetime.now(timezone.utc)).total_seconds()
+                      if deadline_at is not None else self.timeout_seconds)
+        started = perf_counter()
+        try:
+            async with asyncio.timeout(max(0, timeout)):
+                async with self._lock:
+                    if self._closed:
+                        raise LinkReadError("小红书来源已关闭", 503)
+                    self._owner_task = asyncio.current_task()
+                    page = None
+                    blocked = False
+                    navigations = 0
+                    navigation_error = None
+                    try:
+                        context = await self._ensure_context()
+                        page = await context.new_page()
+
+                        async def restrict_navigation(route):
+                            nonlocal blocked, navigations, navigation_error
+                            request = route.request
+                            if request.is_navigation_request() and request.frame == page.main_frame:
+                                navigations += 1
+                                if navigations > 8 or not allowed_navigation(request.url):
+                                    blocked = True
+                                    await route.abort()
+                                    return
+                                try:
+                                    status, headers, body = await self._fetch_note_document(route)
+                                    if status in {301, 302, 303, 307, 308}:
+                                        target = urljoin(request.url, headers.get('location', ''))
+                                        if not headers.get('location') or not allowed_navigation(target):
+                                            blocked = True
+                                            await route.abort()
+                                            return
+                                        # 用新的文档导航继续合法跳转，每一跳都会重新经过域名校验。
+                                        literal = json.dumps(target).replace('<', '\\u003c')
+                                        await route.fulfill(status=200, content_type='text/html',
+                                            body=f'<script>location.replace({literal})</script>')
+                                    else:
+                                        headers = {key: value for key, value in headers.items()
+                                                   if key.lower() not in {'content-encoding', 'content-length', 'transfer-encoding'}}
+                                        await route.fulfill(status=status, headers=headers, body=body)
+                                except Exception as error:
+                                    from playwright.async_api import TimeoutError as BrowserTimeout
+                                    navigation_error = LinkReadError('小红书页面请求超时', 504) if isinstance(
+                                        error, (TimeoutError, BrowserTimeout)) else LinkReadError('小红书页面请求失败')
+                                    await route.abort()
+                                return
+                            await route.fallback()
+
+                        await page.route('**/*', restrict_navigation)
+                        await self._goto(page, HOME)
+                        await self._guard(page)
+                        await asyncio.sleep(self.pacing_seconds)
+                        await self._goto(page, url)
+                        previous = None
+                        identity = None
+                        for _ in range(20):
+                            await self._guard(page)
+                            identity = canonical_note_id(page.url)
+                            if identity:
+                                if expected and identity != expected:
+                                    raise LinkReadError("链接跳转到了另一篇笔记")
+                                if _note_cache is not None and identity in _note_cache:
+                                    return replace(_note_cache[identity], original_url=url)
+                                data = await self._evaluate(page, DETAIL_JS)
+                                if data['detail_found'] or await page.locator('.note-container .note-slider').count():
+                                    stable = (data['title'], data['content'])
+                                    if previous == stable:
+                                        break
+                                    previous = stable
+                            await asyncio.sleep(0.5)
+                        else:
+                            raise LinkReadError("笔记已失效、非笔记页面或正文未加载完成")
+                        images = await self._note_images(page, identity)
+                        if not data['title'].strip() and not data['content'].strip() and not images:
+                            raise LinkReadError("笔记没有可读取的标题、正文或配图")
+                        material = LinkMaterial(url, f'https://www.xiaohongshu.com/explore/{identity}',
+                                                data['title'], data['content'], images)
+                        if _note_cache is not None:
+                            _note_cache[identity] = material
+                        logger.info("xiaohongshu_input_read note_id=%s images=%d elapsed_ms=%.1f",
+                                    identity, len(images), (perf_counter() - started) * 1000)
+                        return material
+                    except asyncio.CancelledError:
+                        await self._reset_browser()
+                        raise
+                    except Exception:
+                        await self._reset_browser()
+                        if blocked:
+                            raise LinkReadError("分享链接跳转到非小红书网站或跳转次数过多", 422) from None
+                        if navigation_error:
+                            raise navigation_error from None
+                        raise
+                    finally:
+                        try:
+                            if page is not None and self._context is not None:
+                                await asyncio.wait_for(page.close(), timeout=1)
+                        except asyncio.CancelledError:
+                            await self._reset_browser()
+                            raise
+                        except Exception:
+                            await self._reset_browser()
+                        finally:
+                            self._owner_task = None
+        except (XiaohongshuLoginRequired, XiaohongshuAccessRestricted) as error:
+            raise LinkReadError(str(error), 503) from None
+        except (TimeoutError, XiaohongshuTimeout):
+            raise LinkReadError("读取超时（含等待浏览器会话），请减少材料后重试", 504) from None
+        except XiaohongshuError as error:
+            raise LinkReadError(str(error)) from None
+        except (LinkReadError, asyncio.CancelledError):
+            raise
+        except Exception:
+            # Playwright 异常可能携带签名 URL，只导出受控说明。
+            raise LinkReadError("笔记图文读取失败，页面结构可能已变化") from None
 
     async def _invoke(self, operation: Callable[[], Awaitable], *, query: bool, execute: Execute | None,
                       retrieved_at: datetime | None = None) -> dict:
@@ -455,6 +647,14 @@ class _RunSource:
     def __init__(self, source: XiaohongshuSource):
         self._source = source
         self._body_cache: BodyCache = {}
+        self._note_cache: dict[str, LinkMaterial] = {}
+        self._input_aliases: dict[str, LinkMaterial] = {}
+
+    async def read_note(self, url: str, *, deadline_at: datetime | None = None) -> LinkMaterial:
+        if url not in self._input_aliases:
+            self._input_aliases[url] = await self._source.read_note(
+                url, deadline_at=deadline_at, _note_cache=self._note_cache)
+        return self._input_aliases[url]
 
     async def search(self, query: str, *, execute: Execute | None = None,
                      excluded_ids: frozenset[str] = frozenset(), deadline_at: datetime | None = None) -> list[Evidence]:

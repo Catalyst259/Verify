@@ -69,12 +69,14 @@ uv run uvicorn backend.main:app --host 127.0.0.1 --port 8000
 {
   "target_place": "上海迪士尼乐园",
   "text": "工作日上午不用排队",
-  "link": ["https://example.com/post-a", "https://example.com/post-b"],
+  "link": ["https://www.xiaohongshu.com/explore/0123456789abcdef01234567", "http://xhslink.com/o/example"],
   "image": ["file_上传接口返回的标识"]
 }
 ```
 
-后端重新读取图片原始 bytes，按顺序将 `file_code` 标签与多模态图片内容送入模型；根目录 `prompt.md` 原文追加到 Agent 系统提示词。使用 browser-use 的结构化输出并检查来源标识，统一顺序编号。禁用搜索工具，按提示词只读取提交链接及其必要页面内容。登录墙或不可访问页面仍可能需要用户补充截图。
+后端重新读取上传图片原始 bytes，按顺序将 `file_code` 标签与多模态图片送入模型。链接仅支持小红书图文笔记：复用专用登录会话读取标题、正文和全部轮播配图，再将材料交给同一提取模型；提取 Agent 不再自行访问网页。根目录 `prompt.md` 追加到系统提示词，并检查来源标识、统一顺序编号。笔记配图来源为 `LINK`，对应提交的原始链接，原笔记不能成为后续独立佐证。
+
+页面可直接粘贴完整分享文案，前端提取其中的 URL；API 的 `link` 仍是纯 URL 数组。支持 `xiaohongshu.com`/`www.xiaohongshu.com` 的 `/explore/{24位ID}`、`/discovery/item/{ID}`、`/search_result/{ID}`，以及 `xhslink.com` 分享短链。以上示例仅演示格式，需要替换成可访问的真实笔记。用户主页、搜索列表、其他网站和视频笔记不支持。链接失败会显示条目序号和原因，不会静默跳过配图；详见 [小红书链接图文核验](docs/XIAOHONGSHU_LINK_MATERIALS.md)。
 
 地点仅限定核验范围。前端要求文字、链接、图片至少提供一种，空材料会在发请求前提示；有材料但没有明确说法时仍可返回 `no_claims`。HTTP API 保留仅地点请求返回 `no_claims` 的兼容行为，不会凭地点名称主动补造主张。
 

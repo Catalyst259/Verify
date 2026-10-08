@@ -5,12 +5,17 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from backend.common.errors import ExtractionFailed, ExtractionTimeout, ImageNotFound, ModelNotConfigured
+from backend.common.errors import ExtractionFailed, ExtractionTimeout, ImageNotFound, LinkReadError, ModelNotConfigured
 
 logger = logging.getLogger(__name__)
 
 
 def register_exception_handlers(app: FastAPI) -> None:
+    @app.exception_handler(LinkReadError)
+    async def link_read_failed(request: Request, error: LinkReadError):
+        logger.warning("Link material unavailable: %s", error)
+        return JSONResponse(status_code=error.status_code, content={"detail": str(error)})
+
     @app.exception_handler(ImageNotFound)
     async def image_not_found(request: Request, error: ImageNotFound):
         return JSONResponse(status_code=404, content={"detail": f"图片不存在：{error}"})

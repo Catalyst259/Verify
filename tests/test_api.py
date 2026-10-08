@@ -10,6 +10,7 @@ from backend import main
 from backend.api import routes as api
 from backend.extraction import agent
 from backend.extraction.models import ClaimExtractionResult
+from backend.extraction.materials import LinkMaterial
 from backend.storage.repository import StorageRepository
 from backend.verification.models import ClaimFinding, Evidence, SubgraphResult
 from backend.verification.capabilities import VerificationCapabilities
@@ -28,9 +29,14 @@ def test_upload_persists_and_submission_recovers_in_request_order(tmp_path):
     async def skip_fact(*args):
         return "[]"
 
-    capabilities = VerificationCapabilities(llm=skip_fact)
+    class Reader:
+        async def read_note(self, url, **kwargs):
+            return LinkMaterial(url, url, '标题', '正文')
 
-    async def extract(target_place, description_text, links, images):
+    capabilities = VerificationCapabilities(llm=skip_fact, evidence_sources={'xiaohongshu': Reader()})
+
+    async def extract(target_place, description_text, links, images, *, link_materials):
+        assert [item.original_url for item in link_materials] == links
         captured.update(target_place=target_place, text=description_text, links=links, images=images)
         return ClaimExtractionResult(target_place="Agent 改写的地点", claims=[{
             "claim_id": "wrong-id", "type": "CROWD", "content": "周末人少。",
@@ -50,7 +56,7 @@ def test_upload_persists_and_submission_recovers_in_request_order(tmp_path):
     # 重启应用，确认数据不只是保存在内存。
     with TestClient(main.create_app(tmp_path, extract, capabilities=capabilities)) as client:
         payload = {"target_place": " 上海迪士尼乐园 ", "text": "周末人少", "image": codes[::-1],
-                   "link": ["https://example.com/a", "https://example.com/b"]}
+                   "link": [f"https://www.xiaohongshu.com/explore/{number:024x}" for number in (1, 2)]}
         response = client.post("/api/verifications", json=payload)
         assert response.status_code == 200
         data = response.json()

@@ -9,6 +9,7 @@ import pytest
 from backend import main
 from backend.extraction import agent
 from backend.extraction.models import ClaimExtractionResult
+from backend.extraction.materials import LinkMaterial
 from backend.verification.capabilities import VerificationCapabilities
 from backend.verification.models import Evidence
 from backend.verification.subgraphs.facts.graph import build_fact_subgraph
@@ -19,7 +20,7 @@ from test_fact_workflow import assessment, make_plan
 INPUT_ID = "f" * 24
 
 
-async def extract_claim(*args):
+async def extract_claim(*args, **kwargs):
     return ClaimExtractionResult(target_place="公园", claims=[{
         "claim_id": "original", "type": "FACT", "content": "公园有停车场。",
         "sources": [{"source_type": "TEXT", "source_ref": None, "source_text": "公园有停车场。"}],
@@ -43,6 +44,9 @@ class OnlineSource:
         self.fail_after = fail_after
         self.calls = []
         self.closed = False
+
+    async def read_note(self, url, **kwargs):
+        return LinkMaterial(url, url, '公园', '公园有停车场。')
 
     async def search(self, query, *, execute, excluded_ids, deadline_at):
         self.calls.append((query, excluded_ids, deadline_at))

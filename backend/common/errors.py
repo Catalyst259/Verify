@@ -15,3 +15,11 @@ class ExtractionTimeout(Exception):
 
 class ExtractionFailed(Exception):
     """Agent 未完成提取，或返回结果不符合结构、来源约束。"""
+
+
+class LinkReadError(Exception):
+    """可向用户显示的链接读取错误；detail 不含原始签名链接或浏览器异常。"""
+
+    def __init__(self, detail: str, status_code: int = 502):
+        super().__init__(detail)
+        self.status_code = status_code

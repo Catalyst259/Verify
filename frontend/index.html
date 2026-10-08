@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>验一下 · 旅行信息核验</title>
   <link rel="stylesheet" href="/style.css?v=category-verdicts-20261007">
-  <script src="/app.js?v=category-verdicts-20261007" defer></script>
+  <script src="/app.js?v=xiaohongshu-links-20261008" defer></script>
 </head>
 <body>
   <main>
@@ -28,8 +28,9 @@
         <label for="description">描述</label>
         <textarea id="description" rows="4" placeholder="粘贴你想评估的种草描述"></textarea>
 
-        <label for="links">链接</label>
-        <textarea id="links" rows="3" placeholder="每行一个完整链接，支持多个"></textarea>
+        <label for="links">小红书链接</label>
+        <textarea id="links" rows="3" placeholder="粘贴小红书笔记链接或完整分享文案，支持多个" aria-describedby="links-hint"></textarea>
+        <small id="links-hint">支持笔记完整链接及 xhslink.com 短链；读取标题、正文和全部配图。暂不支持视频、音频和评论。</small>
         <button id="submit" type="submit">开始评估</button>
       </fieldset>
     </form>

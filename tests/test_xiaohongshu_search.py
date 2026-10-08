@@ -7,6 +7,7 @@ import json
 import pytest
 
 from backend.extraction.models import ClaimExtractionResult
+from backend.extraction.materials import LinkMaterial
 from backend.storage.repository import StorageRepository
 from backend.verification.capabilities import VerificationCapabilities
 from backend.verification.models import VerificationInput
@@ -42,6 +43,9 @@ async def value(data):
 
 
 class FakeSource:
+    async def read_note(self, url, **kwargs):
+        return LinkMaterial(url, url, '公园', '停车场开放。')
+
     def __init__(self, *, failure=None, distinct_batches=False):
         self.failure = failure
         self.distinct_batches = distinct_batches
@@ -205,7 +209,7 @@ def test_each_request_has_its_own_input_note_exclusions_even_for_text_claims(tmp
 
     shared = VerificationCapabilities(evidence_sources={"xiaohongshu": ScopedSource() if scoped_source else FakeSource()})
 
-    async def extract(target_place, *args):
+    async def extract(target_place, *args, **kwargs):
         return ClaimExtractionResult(target_place=target_place, claims=[{
             "claim_id": "c0", "type": "FACT", "content": "停车场开放。",
             "sources": [{"source_type": "TEXT", "source_ref": None, "source_text": "停车场开放。"}],

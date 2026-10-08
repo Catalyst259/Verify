@@ -1,11 +1,13 @@
+import asyncio
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import replace
 
 from backend.extraction.models import ClaimExtractionResult
+from backend.common.errors import LinkReadError
 from backend.extraction.service import ClaimExtractionService
 from backend.storage.repository import StorageRepository
 
-from .budget import RunBudget
+from .budget import RunBudget, remaining
 from .capabilities import VerificationCapabilities
 from .graph import build_verification_graph
 from .models import VerificationInput, VerificationRun
@@ -31,5 +33,19 @@ class VerificationService:
                    for name, source in self.capabilities.evidence_sources.items()}
         capabilities = replace(self.capabilities, input_urls=tuple(request.link), run_budget=RunBudget(),
                                evidence_sources=sources)
+        materials = []
+        for index, url in enumerate(request.link, 1):
+            reader = getattr(sources.get("xiaohongshu"), "read_note", None)
+            if not callable(reader):
+                raise LinkReadError("小红书链接读取能力未配置", 503)
+            try:
+                async with asyncio.timeout(remaining(capabilities.run_budget.deadline_at)):
+                    materials.append(await reader(url, deadline_at=capabilities.run_budget.deadline_at))
+            except TimeoutError:
+                raise LinkReadError(f"第 {index} 条小红书链接读取超时，请减少材料后重试", 504) from None
+            except LinkReadError as error:
+                raise LinkReadError(f"第 {index} 条小红书链接：{error}", error.status_code) from None
+        capabilities = replace(capabilities, link_materials=tuple(materials),
+                               input_urls=(*request.link, *(item.canonical_url for item in materials)))
         output = await self.graph.ainvoke({"request": request}, context=capabilities)
         return output["result"]

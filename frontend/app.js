@@ -292,15 +292,45 @@ function renderVerification(data) {
   result.scrollIntoView({ block: 'start' });
 }
 
+function parseXiaohongshuLinks(value) {
+  if (!value.trim()) return [];
+  const matches = value.match(/https?:\/\/[^\s<>"'\u3000-\u303f\uff00-\uffef]+/gi) || [];
+  if (!matches.length) throw new Error('请粘贴小红书笔记链接或含链接的分享文案。');
+  return [...new Set(matches.map((match, index) => {
+    const candidate = match.replace(/[.,;!?)\]}]+$/, '');
+    let valid = false;
+    try {
+      const url = new URL(candidate);
+      const note = ['xiaohongshu.com', 'www.xiaohongshu.com'].includes(url.hostname)
+        && /^\/(explore|search_result|discovery\/item)\/[0-9a-fA-F]{24}\/?$/.test(url.pathname);
+      const share = ['xhslink.com', 'www.xhslink.com'].includes(url.hostname)
+        && /^\/[a-z0-9_-]+(?:\/[a-z0-9_-]+)*\/?$/i.test(url.pathname);
+      valid = /^https?:$/.test(url.protocol) && !url.username && !url.password && !url.port
+        && !/[\\\x00-\x20\x7f]/.test(candidate) && (note || share);
+    } catch { /* 后续统一报告对应输入条目的校验错误。 */ }
+    if (!valid) throw new Error(`第 ${index + 1} 条链接必须是小红书笔记链接或 xhslink.com 分享短链。`);
+    return candidate;
+  }))];
+}
+
 form.addEventListener('submit', async event => {
   event.preventDefault();
   if (evaluating || uploads.some(item => item.pending || item.error)) return;
   const targetPlace = document.querySelector('#place').value.trim();
   if (!targetPlace) return;
+  let links;
+  try {
+    links = parseXiaohongshuLinks(document.querySelector('#links').value);
+  } catch (error) {
+    result.hidden = true;
+    status.className = 'error';
+    status.textContent = error.message;
+    return;
+  }
   const payload = {
     target_place: targetPlace,
     text: document.querySelector('#description').value,
-    link: document.querySelector('#links').value.split(/\r?\n/).map(link => link.trim()).filter(Boolean),
+    link: links,
     image: uploads.map(item => item.code),
   };
   if (!payload.text.trim() && !payload.link.length && !payload.image.length) {
