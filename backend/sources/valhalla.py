@@ -7,10 +7,10 @@ returning a number, so callers can only conclude "not verified".
 """
 
 import asyncio
-from collections.abc import Sequence
 import json
 import math
 import time
+from collections.abc import Sequence
 from urllib.parse import urlsplit
 
 import httpx
@@ -173,7 +173,6 @@ class ValhallaRouting:
         delay = self._next_request_at - time.monotonic()
         if delay > 0:
             await asyncio.sleep(delay)
-        self._next_request_at = time.monotonic() + self.min_request_interval_seconds
         client = self._client
         temporary = client is None
         if temporary:
@@ -181,9 +180,9 @@ class ValhallaRouting:
         try:
             headers = {"User-Agent": self.user_agent}
             if self.referer:
-                # The service policy asks scripts to identify the calling application.
+                # 服务方要求脚本标明调用方。
                 headers["Referer"] = self.referer
-            # The payload stays on the query string, the form the service documents.
+            # 服务方文档要求载荷走查询串。
             response = await client.get(self.base_url + path, params={"json": json.dumps(payload)},
                                         headers=headers, timeout=self.timeout_seconds)
         except httpx.HTTPError as error:
@@ -191,6 +190,10 @@ class ValhallaRouting:
         finally:
             if temporary:
                 await client.aclose()
+            # 间隔从请求完成起算，而不是从闸门通过起算。响应到达必然晚于请求发出，
+            # 因此服务器看到的相邻请求至少间隔一个周期；按闸门计量会让派发延迟的抖动
+            # 把实际间隔压到周期以下，违反服务方「每秒最多一次」的约束。
+            self._next_request_at = time.monotonic() + self.min_request_interval_seconds
         if response.status_code >= 400:
             raise ValhallaError(_detail(response))
         try:

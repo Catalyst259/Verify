@@ -18,6 +18,8 @@ dependencies = [
 dev = [
     "pytest>=8,<10",
     "httpx>=0.28,<1",
+    "ruff>=0.14",
+    "ty>=0.0.1",
 ]
 
 [build-system]
@@ -27,5 +29,35 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["backend"]
 
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+# 只选查得到真实缺陷的规则集，不选和本仓库既有写法打架的风格规则。
+select = [
+    "E4",   # pycodestyle：语法与逻辑错误
+    "E7",
+    "E9",
+    "F",    # pyflakes：未定义名、未用导入、重复定义
+    "B",    # bugbear：闭包捕获、可变默认参数等陷阱
+    "I",    # isort：导入排序
+    "RUF",  # ruff 自身规则
+]
+# 未启用 UP（pyupgrade）：那是现代化改写而非找缺陷，风格翻新留给单独一次提交。
+ignore = [
+    # FastAPI 的 Depends 就是「函数调用作默认参数」，这是该框架的标准写法。
+    "B008",
+    # 本仓库注释与字符串用中文，全角标点是正常书写，不是「歧义 Unicode」。
+    "RUF001",
+    "RUF002",
+    "RUF003",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ty]
+# 只检查本仓库代码；第三方包的类型问题不该算到我们头上。
+[tool.ty.src]
+exclude = [".venv", "**/__pycache__"]

@@ -5,18 +5,19 @@ import json
 from types import SimpleNamespace
 from urllib.parse import urlsplit
 
-from playwright.async_api import TimeoutError as PlaywrightTimeout
 import pytest
+from playwright.async_api import TimeoutError as PlaywrightTimeout
+
+# fast_polling 是 pytest fixture，只在函数签名里被引用；静态分析看不见，需 noqa。
+from test_xiaohongshu_source import FakePage, execute_hook, fake_source, fast_polling  # noqa: F401
 
 from backend.sources import xiaohongshu as xhs
-from test_xiaohongshu_source import FakePage, execute_hook, fake_source, fast_polling
-
 
 HOME_NOTE = "ffffffffffffffffffffffff"
 
 
 @pytest.fixture
-def cold_source(tmp_path, monkeypatch, fast_polling):
+def cold_source(tmp_path, monkeypatch, fast_polling):  # noqa: F811  pytest 按参数名解析 fixture
     source, contexts, drivers = fake_source(tmp_path, monkeypatch)
     original_goto, original_evaluate = FakePage.goto, FakePage.evaluate
 
@@ -36,7 +37,7 @@ def cold_source(tmp_path, monkeypatch, fast_polling):
         return result
 
     async def evaluate(page, script):
-        page.context.evaluations = getattr(page.context, "evaluations", []) + [(page.url, script)]
+        page.context.evaluations = [*getattr(page.context, "evaluations", []), (page.url, script)]
         if page.url == xhs.HOME:
             if script == xhs.GUARD_JS:
                 return getattr(page.context, "home_guard", "")
@@ -52,7 +53,7 @@ def cold_source(tmp_path, monkeypatch, fast_polling):
 
 def test_bootstrap_recovers_cold_search_and_reads_ten_bodies_with_one_query(cold_source):
     async def scenario():
-        source, contexts, drivers = cold_source
+        source, _, drivers = cold_source
         context = await source._ensure_context()
         cold_page = await context.new_page()
         with pytest.raises(xhs.XiaohongshuError, match="导航超时") as failure:
@@ -82,7 +83,7 @@ def test_bootstrap_recovers_cold_search_and_reads_ten_bodies_with_one_query(cold
 ])
 def test_home_guard_stops_before_search_and_preserves_empty_ledger(cold_source, guard, exception):
     async def scenario():
-        source, contexts, drivers = cold_source
+        source, _, drivers = cold_source
         context = await source._ensure_context()
         context.home_guard = guard
         ledger, calls = [], []
@@ -99,7 +100,7 @@ def test_home_guard_stops_before_search_and_preserves_empty_ledger(cold_source, 
 @pytest.mark.parametrize("status", [403, 404, 429])
 def test_home_http_failure_is_not_used_as_search_evidence(cold_source, status):
     async def scenario():
-        source, contexts, drivers = cold_source
+        source, _, drivers = cold_source
         context = await source._ensure_context()
         context.home_status = status
         with pytest.raises(xhs.XiaohongshuError) as failure:
@@ -112,7 +113,7 @@ def test_home_http_failure_is_not_used_as_search_evidence(cold_source, status):
 
 def test_cancellation_during_home_bootstrap_propagates_and_releases_profile(cold_source, caplog):
     async def scenario():
-        source, contexts, drivers = cold_source
+        source, _, drivers = cold_source
         context = await source._ensure_context()
         entered, block = asyncio.Event(), asyncio.Event()
         context.home_gate = entered, block

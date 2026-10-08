@@ -13,7 +13,6 @@ from backend.verification.capabilities import VerificationCapabilities
 from backend.verification.models import VerificationInput
 from backend.verification.service import VerificationService
 
-
 ROW = {"lat": "31.1440374", "lon": "121.6572943", "name": "上海迪士尼乐园",
        "display_name": "上海迪士尼乐园, 川沙新镇, 浦东新区, 上海市, 中国", "place_id": 566792571}
 

@@ -5,8 +5,8 @@
 """
 
 import asyncio
-from datetime import date, datetime, timezone
 import json
+from datetime import date, datetime, timezone
 
 import pytest
 
@@ -15,7 +15,6 @@ from backend.sources.crowd_signal import HONESTY_NOTE, ApproximateCrowdSignal
 from backend.verification.capabilities import VerificationCapabilities
 from backend.verification.models import VerificationContext
 from backend.verification.subgraphs.crowd.graph import build_crowd_subgraph
-
 
 SCENARIO = "周末"
 CLAIM_TEXT = "周末人少，不用排队。"

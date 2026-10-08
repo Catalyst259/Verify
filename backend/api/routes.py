@@ -3,10 +3,11 @@ from io import BytesIO
 from fastapi import APIRouter, HTTPException, UploadFile
 from PIL import Image, UnidentifiedImageError
 
-from .dto import VerificationRequest
 from backend.storage.repository import StorageRepository
 from backend.verification.models import VerificationInput, VerificationRun
 from backend.verification.service import VerificationService
+
+from .dto import VerificationRequest
 
 MAX_FILE_SIZE = 10 * 1024 * 1024
 MIME_TYPES = {"JPEG": "image/jpeg", "PNG": "image/png", "WEBP": "image/webp", "GIF": "image/gif"}

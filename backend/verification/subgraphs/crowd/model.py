@@ -12,7 +12,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from ...models import CrowdAssessment, Evidence, NonEmptyText
 from ..facts.model import MAX_EVIDENCE_PER_ROUND, EvidenceStrategy
 
-
 CrowdType = Literal["QUEUE", "VISITOR_VOLUME", "TICKETING", "RESERVATION", "SEASONALITY"]
 
 

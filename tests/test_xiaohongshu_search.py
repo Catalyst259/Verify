@@ -1,8 +1,8 @@
 """Native Fact source integration, with no external site or model calls."""
 
 import asyncio
-from datetime import datetime, timedelta, timezone
 import json
+from datetime import datetime, timedelta, timezone
 
 import pytest
 

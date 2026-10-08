@@ -1,12 +1,12 @@
 """真实 Fact 图的状态推进、模型边界、工具预算和失败收束。"""
 
 import asyncio
-from datetime import datetime, timedelta, timezone
 import json
+from datetime import datetime, timedelta, timezone
 
 import httpx
-from openai import AsyncOpenAI
 import pytest
+from openai import AsyncOpenAI
 
 from backend.extraction.models import Claim
 from backend.verification.capabilities import VerificationCapabilities

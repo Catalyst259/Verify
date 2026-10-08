@@ -1,23 +1,23 @@
 """真实前端 + API + SQLite + browser-use + Chromium；仅模型 HTTP 响应使用测试替身。"""
 import base64
-from contextlib import contextmanager
 import json
 import os
-from pathlib import Path
 import socket
 import threading
 import time
+from contextlib import contextmanager
+from pathlib import Path
 
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
 import pytest
 import uvicorn
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
+from test_api import png
 
 from backend import main
 from backend.extraction import agent
 from backend.storage.repository import StorageRepository
 from backend.verification.capabilities import VerificationCapabilities
-from test_api import png
 
 pytestmark = pytest.mark.skipif(os.getenv("VERIFY_BROWSER_TESTS") != "1", reason="显式启用 Chromium 集成测试")
 

@@ -1,5 +1,5 @@
-from io import BytesIO
 import sqlite3
+from io import BytesIO
 
 import pytest
 from fastapi.testclient import TestClient
@@ -11,8 +11,8 @@ from backend.api import routes as api
 from backend.extraction import agent
 from backend.extraction.models import ClaimExtractionResult
 from backend.storage.repository import StorageRepository
-from backend.verification.models import ClaimFinding, Evidence, SubgraphResult
 from backend.verification.capabilities import VerificationCapabilities
+from backend.verification.models import ClaimFinding, Evidence, SubgraphResult
 from backend.verification.state import SubgraphState
 
 

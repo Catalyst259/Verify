@@ -8,14 +8,13 @@ from datetime import datetime
 
 from langgraph.runtime import Runtime
 
+from ...budget import remaining
 from ...capabilities import VerificationCapabilities
 from ..skeleton import CategorySpec, build_category_subgraph
 from .model import MAX_ROUNDS, FactPlan, ValidateResult
 from .prompts import load_system_prompt
 from .search import SearchSession
 from .state import FactClaimState, FactState, PlanState, ValidateState
-
-from ...budget import remaining
 
 
 def check_plan(old: FactClaimState, plan: FactPlan) -> None:

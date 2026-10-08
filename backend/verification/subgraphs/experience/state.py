@@ -6,7 +6,6 @@
 """
 
 from datetime import datetime
-from typing import TypedDict
 
 from ...models import ExperienceAssessment
 from ...state import SubgraphInput, SubgraphState

@@ -2,10 +2,10 @@
 
 import json
 
+import pytest
 from fastapi.testclient import TestClient
 from langgraph.graph import END, START, StateGraph
 from pydantic import ValidationError
-import pytest
 
 from backend import main
 from backend.extraction.models import ClaimExtractionResult

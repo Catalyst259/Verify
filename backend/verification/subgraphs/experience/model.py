@@ -11,7 +11,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from ...models import ExperienceAssessment, NonEmptyText
 from ..facts.model import EvidenceStrategy
 
-
 ExperienceType = Literal["AMBIENCE", "COMFORT", "SERVICE", "SCENERY", "FOOD", "VALUE"]
 
 

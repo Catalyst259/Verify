@@ -8,9 +8,9 @@ a production supplier can replace this class behind the place_resolver slot.
 """
 
 import asyncio
-from collections.abc import Mapping
 import logging
 import math
+from collections.abc import Mapping
 from time import monotonic
 
 import httpx

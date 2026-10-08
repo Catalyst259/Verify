@@ -13,8 +13,13 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from ...models import FactAssessment, NonEmptyText
 from ...state import SubgraphInput, SubgraphOutput, SubgraphState
 from .model import (
-    MAX_EVIDENCE_PER_ROUND, MAX_QUERIES, MAX_RESULTS_PER_QUERY, MAX_ROUNDS, MAX_TOOL_CALLS,
-    FactEvidence, FactPlan,
+    MAX_EVIDENCE_PER_ROUND,
+    MAX_QUERIES,
+    MAX_RESULTS_PER_QUERY,
+    MAX_ROUNDS,
+    MAX_TOOL_CALLS,
+    FactEvidence,
+    FactPlan,
 )
 
 

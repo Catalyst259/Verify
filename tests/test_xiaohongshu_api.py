@@ -1,20 +1,19 @@
 """HTTP integration with the real Fact graph and synthetic online-source actions."""
 
-from datetime import datetime, timezone
 import json
+from datetime import datetime, timezone
 
-from fastapi.testclient import TestClient
 import pytest
+from fastapi.testclient import TestClient
+from test_fact_workflow import assessment, make_plan
 
 from backend import main
 from backend.extraction import agent
 from backend.extraction.models import ClaimExtractionResult
 from backend.verification.capabilities import VerificationCapabilities
 from backend.verification.models import Evidence
-from backend.verification.subgraphs.facts.graph import build_fact_subgraph
 from backend.verification.subgraphs.facts import search
-from test_fact_workflow import assessment, make_plan
-
+from backend.verification.subgraphs.facts.graph import build_fact_subgraph
 
 INPUT_ID = "f" * 24
 

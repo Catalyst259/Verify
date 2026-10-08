@@ -7,22 +7,21 @@ JSONL; signed detail links exist only inside the current query.
 
 import argparse
 import asyncio
-from collections.abc import Awaitable, Callable
-from datetime import date, datetime, timezone
 import json
 import logging
 import math
-from pathlib import Path
 import re
 import sys
+import warnings
+from collections.abc import Awaitable, Callable
+from datetime import date, datetime, timezone
+from pathlib import Path
 from time import perf_counter
 from urllib.parse import parse_qs, urlencode, urlsplit
 from uuid import uuid4
-import warnings
 
 from backend.verification.models import Evidence
 from backend.verification.subgraphs.facts.model import FactEvidence
-
 
 HOME = "https://www.xiaohongshu.com/explore"
 logger = logging.getLogger(__name__)
@@ -370,7 +369,7 @@ class XiaohongshuSource:
                         if not result.get("stopped"):
                             for candidate in result["data"][:self.max_results]:
                                 identity = candidate["note_id"]
-                                result = await self._invoke(lambda: self._read(detail_page, identity, private[identity]),
+                                result = await self._invoke(lambda identity=identity: self._read(detail_page, identity, private[identity]),
                                                             query=False, execute=execute)
                                 if result.get("stopped"):
                                     break

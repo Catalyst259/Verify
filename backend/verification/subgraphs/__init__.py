@@ -7,7 +7,6 @@ from ..capabilities import VerificationCapabilities
 from ..models import SubgraphResult
 from ..state import SubgraphInput, SubgraphOutput, SubgraphState
 
-
 VerificationSubgraph = CompiledStateGraph[SubgraphState, VerificationCapabilities, SubgraphInput, SubgraphOutput]
 
 

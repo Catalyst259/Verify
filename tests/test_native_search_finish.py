@@ -3,12 +3,12 @@
 import asyncio
 
 import pytest
+from test_fact_workflow import make_plan, new_session, read
 
 from backend.verification.subgraphs.facts.model import FactPlan, SearchResult
 from backend.verification.subgraphs.facts.prompts import load_system_prompt
 from backend.verification.subgraphs.facts.search import SearchSession, create_tools
 from backend.verification.subgraphs.facts.state import FactClaimState
-from test_fact_workflow import make_plan, new_session, read
 
 
 async def finish(session):

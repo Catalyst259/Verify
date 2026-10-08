@@ -12,9 +12,9 @@ review feed to aggregate and the source fails loudly rather than inventing a cro
 """
 
 import hashlib
+import math
 from collections.abc import Awaitable, Callable
 from datetime import date, datetime, timedelta, timezone
-import math
 
 from backend.verification.models import Evidence
 

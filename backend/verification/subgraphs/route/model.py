@@ -1,6 +1,7 @@
 """ROUTE 节点的数据契约：主张里的数字由代码持有，模型只做测量与判定。"""
 
 from typing import Annotated
+
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 from ...capabilities import Costing

@@ -7,13 +7,12 @@ from datetime import datetime
 
 from langgraph.runtime import Runtime
 
-from ...budget import remaining
 from ...capabilities import VerificationCapabilities
 from ..skeleton import CategorySpec, build_category_subgraph
 from .model import RoutePlan, RouteValidateResult
 from .prompts import load_system_prompt
 from .search import RouteSearchSession, run_route_search
-from .state import RouteClaimState, RouteState, PlanState, ValidateState
+from .state import PlanState, RouteClaimState, RouteState, ValidateState
 
 
 def check_plan(old: RouteClaimState, plan: RoutePlan) -> None:

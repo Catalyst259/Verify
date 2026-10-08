@@ -9,7 +9,6 @@ import pytest
 from backend.sources import xiaohongshu as xhs
 from backend.verification.subgraphs.facts.model import FactEvidence
 
-
 ID = "65abcdef0123456789abcdef"
 
 
@@ -211,7 +210,7 @@ def test_later_failure_preserves_registered_partial_and_redacts_browser_errors(t
     ("2026-10-05T00:00:00+08:00", datetime), ("昨天 上海", type(None))])
 def test_publication_preserves_precision(tmp_path, monkeypatch, publication, expected_type):
     async def scenario():
-        source, contexts, _ = fake_source(tmp_path, monkeypatch, max_results=1)
+        source, _, _ = fake_source(tmp_path, monkeypatch, max_results=1)
         context = await source._ensure_context()
         context.publish_time = publication
         assert type((await source.search("公园"))[0].published_at) is expected_type
