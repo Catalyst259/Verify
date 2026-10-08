@@ -36,6 +36,7 @@ _NETWORK_ERRORS = {
 }
 _NOTE_PATH = re.compile(r"^/(?:explore|search_result|discovery/item)/([0-9a-fA-F]{24})/?$")
 Execute = Callable[..., Awaitable[dict]]
+BodyCache = dict[str, tuple[dict, datetime]]
 
 # Read visible cards and detail text, never application state or private APIs.
 CARDS_JS = r"""() => Array.from(document.querySelectorAll('.note-item')).filter(card =>
@@ -161,6 +162,10 @@ class XiaohongshuSource:
                    max_results=settings.get("max_results", 10), timeout_seconds=settings.get("timeout_seconds", 120),
                    executable_path=settings.get("executable_path") or None,
                    pacing_seconds=settings.get("pacing_seconds", 4))
+
+    def for_run(self) -> "_RunSource":
+        """Share validated bodies within one verification, keeping the profile lock shared."""
+        return _RunSource(self)
 
     async def _ensure_context(self, *, headless: bool = True):
         if self._context is not None:
@@ -320,14 +325,17 @@ class XiaohongshuSource:
             await asyncio.sleep(0.5)
         raise XiaohongshuError("小红书详情正文未显示或未稳定，未将候选摘要作为证据")
 
-    async def _invoke(self, operation: Callable[[], Awaitable], *, query: bool, execute: Execute | None) -> dict:
+    async def _invoke(self, operation: Callable[[], Awaitable], *, query: bool, execute: Execute | None,
+                      retrieved_at: datetime | None = None) -> dict:
         if execute is None:
             data = await operation()
             if not query:
                 data = FactEvidence.model_validate(data | {"evidence_id": uuid4().hex,
-                    "retrieved_at": datetime.now(timezone.utc)}).model_dump()
+                    "retrieved_at": retrieved_at or datetime.now(timezone.utc)}).model_dump()
             return {"data": data}
-        result = await execute(operation, query=query)
+        # Only reused bodies need an explicit timestamp; existing uncached hooks keep their signature.
+        timing = {"retrieved_at": retrieved_at} if retrieved_at is not None else {}
+        result = await execute(operation, query=query, **timing)
         if result.get("error"):
             error = str(result["error"])
             if "XiaohongshuLoginRequired" in error:
@@ -338,7 +346,8 @@ class XiaohongshuSource:
         return result
 
     async def search(self, query: str, *, execute: Execute | None = None,
-                     excluded_ids: frozenset[str] = frozenset(), deadline_at: datetime | None = None) -> list[Evidence]:
+                     excluded_ids: frozenset[str] = frozenset(), deadline_at: datetime | None = None,
+                     _body_cache: BodyCache | None = None) -> list[Evidence]:
         """Search and read fresh bodies, registering candidates and each body separately.
 
         The timeout covers profile-lock waiting and all reads. On failure a
@@ -370,13 +379,27 @@ class XiaohongshuSource:
                         if not result.get("stopped"):
                             for candidate in result["data"][:self.max_results]:
                                 identity = candidate["note_id"]
-                                result = await self._invoke(lambda: self._read(detail_page, identity, private[identity]),
-                                                            query=False, execute=execute)
+                                cached = _body_cache.get(identity) if _body_cache is not None else None
+
+                                async def read_body():
+                                    if cached is not None:
+                                        return dict(cached[0])
+                                    return await self._read(detail_page, identity, private[identity])
+
+                                result = await self._invoke(read_body, query=False, execute=execute,
+                                                            retrieved_at=cached[1] if cached else None)
                                 if result.get("stopped"):
                                     break
                                 if result.get("data", {}).get("duplicate"):
                                     continue
-                                evidence.append(FactEvidence.model_validate(result["data"]))
+                                item = FactEvidence.model_validate(result["data"])
+                                if canonical_note_id(item.url) != identity:
+                                    raise XiaohongshuError("已登记的小红书正文与候选笔记不一致")
+                                if _body_cache is not None and cached is None:
+                                    _body_cache[identity] = (
+                                        item.model_dump(exclude={"evidence_id", "retrieved_at"}), item.retrieved_at,
+                                    )
+                                evidence.append(item)
                     except (Exception, asyncio.CancelledError):
                         await self._reset_browser()
                         raise
@@ -424,6 +447,19 @@ class XiaohongshuSource:
                 await self._guard(page)
         finally:
             await self.aclose()
+
+
+class _RunSource:
+    """One run's body cache; candidate search and access checks always use live DOM."""
+
+    def __init__(self, source: XiaohongshuSource):
+        self._source = source
+        self._body_cache: BodyCache = {}
+
+    async def search(self, query: str, *, execute: Execute | None = None,
+                     excluded_ids: frozenset[str] = frozenset(), deadline_at: datetime | None = None) -> list[Evidence]:
+        return await self._source.search(query, execute=execute, excluded_ids=excluded_ids,
+                                         deadline_at=deadline_at, _body_cache=self._body_cache)
 
 
 def main(argv: list[str] | None = None) -> int:

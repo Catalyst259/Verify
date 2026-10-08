@@ -2,7 +2,7 @@
 
 import asyncio
 from collections.abc import Awaitable, Callable, Mapping
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 import json
 from time import perf_counter
 from urllib.parse import quote_plus, urlsplit
@@ -14,6 +14,7 @@ from backend.extraction.agent import load_config
 from backend.common.model_json import normalize_model_json
 from backend.sources.xiaohongshu import canonical_note_id
 from backend.verification.capabilities import EvidenceSource
+from backend.verification.budget import remaining
 from backend.verification.models import FactSourceType
 
 from ..diagnostics import record, timed
@@ -29,6 +30,10 @@ class SearchSession:
                  input_urls: tuple[str, ...] = (), evidence_sources: Mapping[str, EvidenceSource] | None = None):
         self.claim_id = claim.plan.claim_id
         self.deadline_at = deadline_at
+        # 编排骨架提供收尾截止时间；直接调用时仍使用原有三秒清理上限。
+        self.cleanup_deadline_at: datetime | None = None
+        # 仅保存截止前、经工具记录校验的完成结果；清理失败不能覆盖它。
+        self.completed_result: str | None = None
         self.round = FactRoundState(round_number=len(claim.rounds) + 1)
         self.evidence: list[FactEvidence] = []
         self.diagnostics: list[str] = []
@@ -45,6 +50,7 @@ class SearchSession:
             "queries": MAX_QUERIES - self.round.queries,
             "evidence": MAX_EVIDENCE_PER_ROUND - len(self.evidence),
             "max_results_per_query": MAX_RESULTS_PER_QUERY,
+            "time_seconds": round(remaining(self.deadline_at), 3),
         }
 
     def exhausted(self) -> bool:
@@ -270,8 +276,13 @@ def create_tools(session: SearchSession, browser):
 
             async def crawl():
                 try:
-                    await source.search(query, execute=crawler_execute, excluded_ids=session.input_note_ids,
-                                        deadline_at=session.deadline_at)
+                    # 来源取消后的有界清理、Agent 下一次决策及结束动作也需要时间。
+                    # 不把整段 Search 余量交给一次批量来源读取。
+                    source_deadline = session.deadline_at - timedelta(seconds=min(10, remaining(session.deadline_at)))
+                    with timed(session.diagnostics, "xiaohongshu_query", **session.diagnostic_context,
+                               remaining_ms=round(remaining(source_deadline) * 1000, 3)):
+                        await source.search(query, execute=crawler_execute, excluded_ids=session.input_note_ids,
+                                            deadline_at=source_deadline)
                     return None
                 except Exception as error:
                     message = f"Xiaohongshu: {type(error).__name__}: {str(error) or '来源未完成'}"
@@ -362,6 +373,7 @@ async def run_search(session: SearchSession, system_prompt: str, task: str) -> s
     async def should_stop():
         return session.exhausted() or datetime.now(timezone.utc) >= session.deadline_at
 
+    original_cancel = None
     try:
         agent = Agent(
             task=task, llm=llm, browser=browser, tools=create_tools(session, browser),
@@ -374,11 +386,36 @@ async def run_search(session: SearchSession, system_prompt: str, task: str) -> s
         if datetime.now(timezone.utc) >= session.deadline_at:
             raise TimeoutError("Search 已到内部截止时间")
         if history.is_successful():
-            return str(history.final_result())
-        if session.exhausted():
-            return session.result().model_dump_json()
-        raise RuntimeError("Search Agent 未完成取证")
+            raw = str(history.final_result())
+        elif session.exhausted():
+            raw = session.result().model_dump_json()
+        else:
+            raise RuntimeError("Search Agent 未完成取证")
+        session.result(raw)
+        session.completed_result = raw
+        return raw
+    except asyncio.CancelledError as cause:
+        original_cancel = cause
+        raise
     finally:
-        with timed(session.diagnostics, "browser_cleanup", **session.diagnostic_context):
-            async with asyncio.timeout(3):
-                await browser.kill()
+        async def cleanup():
+            with timed(session.diagnostics, "browser_cleanup", **session.diagnostic_context):
+                # Search 取消后的 finally 同样消耗预算，不能越过子图收尾截止时间。
+                cleanup_timeout = 3 if session.cleanup_deadline_at is None else min(3, remaining(session.cleanup_deadline_at))
+                async with asyncio.timeout(cleanup_timeout):
+                    await browser.kill()
+
+        cleanup_task = asyncio.create_task(cleanup())
+        try:
+            await asyncio.shield(cleanup_task)
+        except asyncio.CancelledError:
+            # 使用已预留的有界清理时间，随后继续传递原取消；硬截止再次取消仍会终止。
+            try:
+                await cleanup_task
+            except Exception:
+                pass  # 清理任务已记录失败，不能用清理异常覆盖原取消。
+            raise
+        except Exception:
+            if original_cancel is not None:
+                raise original_cancel
+            raise

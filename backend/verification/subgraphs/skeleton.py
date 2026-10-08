@@ -134,6 +134,8 @@ def build_category_subgraph(spec: CategorySpec):
             session = spec.make_session(old, deadline, checked_at=state["context"].checked_at,
                                         input_urls=runtime.context.input_urls,
                                         evidence_sources=runtime.context.evidence_sources)
+            # 浏览器关闭可使用 Validate 余量，但必须留下主图组装结果的时间。
+            session.cleanup_deadline_at = state["deadline_at"]
             error = None
             queued_at = perf_counter()
             started = False
@@ -159,12 +161,18 @@ def build_category_subgraph(spec: CategorySpec):
                                 raw = await runner(session, system_prompt, task)
                                 session.result(raw)
                 except Exception as cause:
-                    detail = str(cause) or "阶段执行未完成"
-                    if isinstance(cause, TimeoutError) and not str(cause):
-                        detail = "取证超时" if started else "等待取证槽位超时"
-                    error = f"Search: {type(cause).__name__}: {detail}"
-                    timing.update(outcome="timeout" if isinstance(cause, TimeoutError) else "error", error=error)
-                    session.update_round(search_error="; ".join(filter(None, [session.round.search_error, error])))
+                    completed = getattr(session, "completed_result", None)
+                    if completed is not None:
+                        session.result(completed)
+                        # 有效 done 已在截止前完成；这里的异常来自后续浏览器关闭。
+                        timing.update(outcome="cleanup_error", error=f"Browser cleanup: {type(cause).__name__}: {str(cause) or '清理使用了 Search 后预留的时间'}")
+                    else:
+                        detail = str(cause) or "阶段执行未完成"
+                        if isinstance(cause, TimeoutError) and not str(cause):
+                            detail = "取证超时" if started else "等待取证槽位超时"
+                        error = f"Search: {type(cause).__name__}: {detail}"
+                        timing.update(outcome="timeout" if isinstance(cause, TimeoutError) else "error", error=error)
+                        session.update_round(search_error="; ".join(filter(None, [session.round.search_error, error])))
                 finally:
                     timing.setdefault("queue_ms", round((perf_counter() - queued_at) * 1000, 3))
             return claim_id, replace_claim(old, evidence=[*old.evidence, *session.evidence],

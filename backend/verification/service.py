@@ -26,6 +26,10 @@ class VerificationService:
     async def run(self, request: VerificationInput) -> VerificationRun:
         """将业务输入交给主图，解包并返回完整运行结果。"""
         # 槽位与截止时间必须每次运行新建，不能随 capabilities 实例跨运行复用。
-        capabilities = replace(self.capabilities, input_urls=tuple(request.link), run_budget=RunBudget())
+        # 来源可复用本次运行已读取的正文；缓存不能随应用级来源跨请求沿用。
+        sources = {name: source.for_run() if callable(getattr(source, "for_run", None)) else source
+                   for name, source in self.capabilities.evidence_sources.items()}
+        capabilities = replace(self.capabilities, input_urls=tuple(request.link), run_budget=RunBudget(),
+                               evidence_sources=sources)
         output = await self.graph.ainvoke({"request": request}, context=capabilities)
         return output["result"]

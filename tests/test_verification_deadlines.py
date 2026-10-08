@@ -11,7 +11,7 @@ import pytest
 from backend.main import create_app
 from backend.extraction.models import ClaimExtractionResult
 from backend.verification import service as service_module
-from backend.verification.budget import RunBudget
+from backend.verification.budget import RunBudget, remaining
 from backend.verification.capabilities import VerificationCapabilities
 from backend.verification.models import VerificationInput
 from backend.verification.subgraphs.facts.graph import build_fact_subgraph
@@ -176,5 +176,177 @@ def test_expired_shared_budget_does_not_start_model_or_search():
         result = (await build_fact_subgraph().ainvoke(inputs(), context=VerificationCapabilities(
             llm=unexpected, search=unexpected, run_budget=budget)))["result"]
         assert result.status == "failed" and "TimeoutError" in result.error
+
+    asyncio.run(exercise())
+
+
+def test_browser_cleanup_before_shared_deadline_keeps_registered_evidence(tmp_path, monkeypatch):
+    """A late Search cancellation must not let browser cleanup erase its evidence."""
+    import browser_use
+    from backend.verification.subgraphs.facts import search as search_module
+
+    sessions, events = [], []
+
+    class Browser:
+        def __init__(self, **kwargs):
+            pass
+
+        async def kill(self):
+            events.append("cleanup_started")
+            try:
+                # This is within run_search's actual three-second cleanup bound,
+                # but longer than the short remaining run can afford after Search.
+                await asyncio.sleep(0.7)
+            except asyncio.CancelledError:
+                events.append("cleanup_cancelled")
+                raise
+            finally:
+                events.append("cleanup_finished")
+
+    class Agent:
+        def __init__(self, **kwargs):
+            pass
+
+        async def run(self, **kwargs):
+            await read(sessions[-1])
+            events.append("evidence_registered")
+            await asyncio.sleep(10)
+
+    monkeypatch.setattr(browser_use, "Browser", Browser)
+    monkeypatch.setattr(browser_use, "Agent", Agent)
+    monkeypatch.setattr(search_module, "create_tools", lambda *args: object())
+    monkeypatch.setattr(search_module, "load_config", lambda: {
+        "model": "compatible-model", "api_key": "test-only", "base_url": "http://model.test/v1",
+        "timeout_seconds": 10, "max_steps": 1, "browser_executable_path": "",
+    })
+
+    async def extract(*args):
+        return ClaimExtractionResult(target_place="公园", claims=inputs()["claims"])
+
+    async def search(session, *args):
+        sessions.append(session)
+        return await search_module.run_search(session, *args)
+
+    svc = service(tmp_path, extract, subgraphs={"fact": build_fact_subgraph()})
+
+    async def exercise():
+        # Keep the production 240-second budget; extraction/POI resolution may
+        # leave less than one second by the time the branch is dispatched.
+        budget = RunBudget(timeout_seconds=240,
+                           started_at=datetime.now(timezone.utc) - timedelta(seconds=239.2))
+        result = (await svc.graph.ainvoke(
+            {"request": VerificationInput(target_place="公园", text="公园有停车场。")},
+            context=VerificationCapabilities(run_budget=budget, llm=fact_model, search=search),
+        ))["result"].subgraph_results["fact"]
+        print(json.dumps({"events": events, "result": result.model_dump(mode="json")}, ensure_ascii=False))
+        assert "evidence_registered" in events and "cleanup_finished" in events
+        acquired = 0
+        try:
+            # Both production slots must be available; locked() alone would
+            # miss a single leaked slot while concurrency remains two.
+            async with asyncio.timeout(0.1):
+                for _ in range(2):
+                    await budget.browser_slots.acquire()
+                    acquired += 1
+        finally:
+            for _ in range(acquired):
+                budget.browser_slots.release()
+        assert len(result.findings) == 1, "Outer cancellation discarded registered Search evidence"
+        assert len(result.findings[0].evidence) == 1
+        assert "子图超过运行预算" not in (result.error or "")
+        assert any("Search: TimeoutError" in note for note in result.notes)
+
+    asyncio.run(exercise())
+
+
+@pytest.mark.parametrize("agent_done", [True, False])
+@pytest.mark.parametrize("cleanup_failure", [False, True])
+def test_successful_search_keeps_valid_result_when_browser_cleanup_times_out(tmp_path, monkeypatch, agent_done, cleanup_failure):
+    """A valid done before Search's deadline remains valid if only cleanup expires."""
+    import browser_use
+    from backend.verification.subgraphs.facts import search as search_module
+
+    sessions, events, successful_raw = [], [], []
+
+    class Browser:
+        def __init__(self, **kwargs):
+            pass
+
+        async def kill(self):
+            events.append("cleanup_started")
+            try:
+                await asyncio.sleep(0.2)
+                if cleanup_failure:
+                    raise TimeoutError("browser cleanup failed")
+            except asyncio.CancelledError:
+                events.append("cleanup_cancelled")
+                raise
+            finally:
+                events.append("cleanup_finished")
+
+    class History:
+        def is_successful(self):
+            return agent_done
+
+        def final_result(self):
+            raw = sessions[-1].result().model_dump_json()
+            successful_raw.append(raw)
+            return raw
+
+    class Agent:
+        def __init__(self, **kwargs):
+            pass
+
+        async def run(self, **kwargs):
+            await read(sessions[-1])
+            if not agent_done:
+                sessions[-1].update_round(tool_calls=20)
+            await asyncio.sleep(max(0, remaining(sessions[-1].deadline_at) - 0.08))
+            events.append({"agent_done_remaining": remaining(sessions[-1].deadline_at)})
+            return History()
+
+    monkeypatch.setattr(browser_use, "Browser", Browser)
+    monkeypatch.setattr(browser_use, "Agent", Agent)
+    monkeypatch.setattr(search_module, "create_tools", lambda *args: object())
+    monkeypatch.setattr(search_module, "load_config", lambda: {
+        "model": "compatible-model", "api_key": "test-only", "base_url": "http://model.test/v1",
+        "timeout_seconds": 10, "max_steps": 1, "browser_executable_path": "",
+    })
+
+    async def extract(*args):
+        return ClaimExtractionResult(target_place="公园", claims=inputs()["claims"])
+
+    async def search(session, *args):
+        sessions.append(session)
+        return await search_module.run_search(session, *args)
+
+    svc = service(tmp_path, extract, subgraphs={"fact": build_fact_subgraph()})
+
+    async def exercise():
+        budget = RunBudget(timeout_seconds=240,
+                           started_at=datetime.now(timezone.utc) - timedelta(seconds=238))
+        result = (await svc.graph.ainvoke(
+            {"request": VerificationInput(target_place="公园", text="公园有停车场。")},
+            context=VerificationCapabilities(run_budget=budget, llm=fact_model, search=search),
+        ))["result"].subgraph_results["fact"]
+        print(json.dumps({"events": events, "result": result.model_dump(mode="json")}, ensure_ascii=False))
+        done = next(item for item in events if isinstance(item, dict))
+        assert done["agent_done_remaining"] > 0
+        assert "cleanup_cancelled" not in events and "cleanup_finished" in events
+        assert len(successful_raw) == int(agent_done)
+        validated = sessions[0].result(sessions[0].completed_result)
+        assert len(validated.evidence) == 1 and validated.error is None
+        assert len(result.findings) == 1
+        finding = result.findings[0]
+        assert finding.assessment.verdict == "SUPPORTED" and len(finding.evidence) == 1
+        assert finding.error is None, "Browser cleanup overwrote a validated, completed Search"
+        assert result.status == "completed" and result.error is None
+        diagnostics = [json.loads(note) for note in result.notes if note.startswith("{")]
+        cleanup = [item for item in diagnostics if item.get("stage") == "browser_cleanup"]
+        assert len(cleanup) == 1
+        assert cleanup[0]["outcome"] == ("timeout" if cleanup_failure else "success")
+        search_timings = [item for item in diagnostics if item.get("stage") == "search_claim"]
+        assert search_timings[0]["outcome"] == "cleanup_error"
+        assert not any("Search: TimeoutError" in note for note in result.notes)
 
     asyncio.run(exercise())
