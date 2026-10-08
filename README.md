@@ -44,20 +44,17 @@ backend/
 
 ## 启动
 
-在仓库根目录执行，使用 Python 3.12+：
+在仓库根目录执行。依赖由 uv 管理（`pyproject.toml` 声明，`uv.lock` 锁定），`requires-python >= 3.12`：
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r backend/requirements.txt
-pip install playwright
-python -m playwright install chromium --no-shell
+uv sync                                          # 建 .venv 并装依赖，含 dev 组
+uv run playwright install chromium --no-shell    # 本地 Chromium
 cp -n backend/config.example.toml backend/config.toml  # 保留已有配置
-python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+uv run uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```
 
-打开 http://127.0.0.1:8000 。Windows 激活命令为 `.venv\Scripts\Activate.ps1`。
-上面的 Playwright 命令安装本地 Chromium；Linux 如果缺少浏览器系统库，执行 `python -m playwright install-deps chromium`。已有 Chrome/Chromium 时可以跳过浏览器安装，在配置中指定 `browser_executable_path`。
+打开 http://127.0.0.1:8000 。`uv sync` 默认包含 dev 依赖组；只要运行时依赖用 `uv sync --no-dev`。
+上面的 Playwright 命令安装本地 Chromium；Linux 如果缺少浏览器系统库，执行 `uv run playwright install-deps chromium`。已有 Chrome/Chromium 时可以跳过浏览器安装，在配置中指定 `browser_executable_path`。
 
 在 `backend/config.toml` 填写 `api_key`，按供应商设置 `base_url` 和 `model`。支持提供图片输入及 JSON Schema 输出的 OpenAI 兼容模型，也兼容 `deepseek-flash`（使用 JSON mode 后本地校验结构，并修正 browser-use 0.13.10 自动关闭 DeepSeek 视觉的旧判断）。`config.example.toml` 中密钥留空；实际配置文件已被 Git 忽略。程序依次读取 `config.local.toml`、`config.toml`、`config.example.toml` 中首个存在的文件。未配置密钥时可以上传图片，评估返回明确的 503 提示。
 
@@ -154,10 +151,10 @@ Fact 的诊断以 JSON 字符串追加到 `subgraph_results.fact.notes`，同时
 ## 检查
 
 ```bash
-pip install -r backend/requirements-dev.txt
-python -m pytest -q
+uv sync                    # dev 依赖组随默认同步装入
+uv run python -m pytest -q
 # 可选：运行真实浏览器链路测试，模型 HTTP 响应使用本地测试替身。
-VERIFY_BROWSER_TESTS=1 python -m pytest tests/test_browser.py tests/test_fact_browser.py tests/test_xiaohongshu_source_browser.py -q
+VERIFY_BROWSER_TESTS=1 uv run python -m pytest tests/test_browser.py tests/test_fact_browser.py tests/test_xiaohongshu_source_browser.py -q
 ```
 
 接口测试使用临时数据库，覆盖上传、落盘、重启恢复、图片顺序、四字段提交、错误状态，以及完整运行结果中的发现、证据和子图失败信息。浏览器测试覆盖拖拽两张图片、无链接及多个链接、页面实际读取、系统提示词与多模态消息传递、完整运行结果和状态展示；如使用非默认 Chromium 路径，可设置 `VERIFY_CHROMIUM`。测试中的替身输出仅用于验证链路，不代表真实模型提取效果；正式运行始终调用配置的模型。
