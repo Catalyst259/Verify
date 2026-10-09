@@ -7,6 +7,7 @@ import json
 import pytest
 
 from backend.extraction.models import ClaimExtractionResult
+from backend.extraction.materials import LinkMaterial
 from backend.storage.repository import StorageRepository
 from backend.verification.capabilities import VerificationCapabilities
 from backend.verification.models import VerificationInput
@@ -42,6 +43,9 @@ async def value(data):
 
 
 class FakeSource:
+    async def read_note(self, url, **kwargs):
+        return LinkMaterial(url, url, '公园', '停车场开放。')
+
     def __init__(self, *, failure=None, distinct_batches=False):
         self.failure = failure
         self.distinct_batches = distinct_batches
@@ -192,11 +196,20 @@ def test_input_note_is_excluded_from_source_and_final_redirect(monkeypatch, inpu
     asyncio.run(exercise())
 
 
-def test_each_request_has_its_own_input_note_exclusions_even_for_text_claims(tmp_path):
+@pytest.mark.parametrize("scoped_source", [False, True])
+def test_each_request_has_its_own_input_note_exclusions_even_for_text_claims(tmp_path, scoped_source):
     received = []
-    shared = VerificationCapabilities(evidence_sources={"xiaohongshu": FakeSource()})
+    forks = []
 
-    async def extract(target_place, *args):
+    class ScopedSource(FakeSource):
+        def for_run(self):
+            source = FakeSource()
+            forks.append(source)
+            return source
+
+    shared = VerificationCapabilities(evidence_sources={"xiaohongshu": ScopedSource() if scoped_source else FakeSource()})
+
+    async def extract(target_place, *args, **kwargs):
         return ClaimExtractionResult(target_place=target_place, claims=[{
             "claim_id": "c0", "type": "FACT", "content": "停车场开放。",
             "sources": [{"source_type": "TEXT", "source_ref": None, "source_text": "停车场开放。"}],
@@ -216,7 +229,11 @@ def test_each_request_has_its_own_input_note_exclusions_even_for_text_claims(tmp
         }}])
 
     async def runner(current, prompt, task):
-        assert current.evidence_sources["xiaohongshu"] is shared.evidence_sources["xiaohongshu"]
+        if scoped_source:
+            assert current.evidence_sources["xiaohongshu"] in forks
+            assert current.evidence_sources["xiaohongshu"] is not shared.evidence_sources["xiaohongshu"]
+        else:
+            assert current.evidence_sources["xiaohongshu"] is shared.evidence_sources["xiaohongshu"]
         target = json.loads(task)["context"]["target_place"]
         received.append((target, current.input_note_ids))
         await asyncio.sleep(0)
@@ -239,6 +256,8 @@ def test_each_request_has_its_own_input_note_exclusions_even_for_text_claims(tmp
         assert [result.subgraph_results["fact"].findings[0].evidence[0].url for result in results] == [
             note(2)["url"], note(1)["url"]]
         assert service.capabilities.input_urls == shared.input_urls == ()
+        if scoped_source:
+            assert len(forks) == 2 and forks[0] is not forks[1]
     asyncio.run(exercise())
 
 
@@ -270,3 +289,29 @@ def test_two_rounds_allow_thirty_evidence_and_generated_schema_matches():
     assert SearchResult.model_json_schema()["properties"]["evidence"]["maxItems"] == 15
     assert FactClaimState.model_json_schema()["properties"]["evidence"]["maxItems"] == 30
     assert VerificationCapabilities().subgraph_timeout_seconds == 300
+
+
+def test_slow_source_returns_partial_material_before_search_deadline(monkeypatch):
+    """A bulk source must leave time for the Agent to inspect results and finish."""
+    mock_web(monkeypatch)
+
+    class SlowSource:
+        async def search(self, query, *, execute, deadline_at, **kwargs):
+            async with asyncio.timeout((deadline_at - datetime.now(timezone.utc)).total_seconds()):
+                await execute(lambda: value([note(1)]), query=True)
+                await execute(lambda: value(note(1)))
+                await asyncio.sleep(30)
+
+    async def exercise():
+        current = session(evidence_sources={"xiaohongshu": SlowSource()})
+        current.deadline_at = datetime.now(timezone.utc) + timedelta(seconds=1)
+        tools = create_tools(current, object())
+        result = await asyncio.wait_for(action(tools, "search_web", query="停车场"), timeout=2)
+        assert len(result["crawler_evidence"]) == 1
+        assert "TimeoutError" in result["crawler_error"]
+        assert not result["deadline_reached"] and result["remaining_budget"]["time_seconds"] > 0.1
+        finished = await tools.registry.execute_action("done", {})
+        assert finished.is_done and finished.success
+        assert len(SearchResult.model_validate_json(finished.extracted_content).evidence) == 1
+
+    asyncio.run(exercise())

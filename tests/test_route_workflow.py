@@ -2,6 +2,8 @@
 
 import asyncio
 import json
+import pytest
+import httpx
 from datetime import datetime, timezone
 
 from backend.extraction.models import Claim
@@ -9,6 +11,8 @@ from backend.verification.capabilities import Coordinates, RouteResult, Verifica
 from backend.verification.models import PlaceReference, VerificationContext
 from backend.verification.subgraphs.route import build_route_subgraph
 from backend.verification.subgraphs.route.model import RoutePlan
+from backend.verification.subgraphs.route.graph import has_claimed_duration
+from backend.sources.nominatim import NominatimPlaceResolver
 
 CHECKED = datetime(2026, 10, 7, 9, 0, 0, tzinfo=timezone.utc)
 EVIDENCE_ID = "c0-r1-0"  # 测量会话生成的首个实测证据标识
@@ -163,3 +167,160 @@ def test_unreachable_route_is_a_measurement_not_an_error():
     assert result.status == "completed"
     assert result.findings[0].assessment.measured_seconds is None
     assert any("不可达" in item.content for item in result.findings[0].evidence)
+
+
+@pytest.mark.parametrize("text", ["断桥 → 白堤 → 苏堤 → 雷峰塔是一条经典步行路线。", "断桥适合作为起点。", "沿湖走 5 公里。"])
+def test_route_without_claimed_time_never_invents_a_measurement_plan(text):
+    async def unexpected(*args):
+        pytest.fail("游览顺序没有时长数值，不能生成时长比对计划")
+
+    result = asyncio.run(build_route_subgraph().ainvoke(inputs(text), context=VerificationCapabilities(
+        llm=unexpected, map_routing=FakeRouting(), subgraph_timeout_seconds=10)))["result"]
+    assert result.status == "skipped" and not result.selected_claim_ids and not result.findings
+
+
+@pytest.mark.parametrize("text", ["步行5分钟", "步行约 1.5 小时", "步行半小时", "步行半个小时", "从地铁到公园大约两三分钟", "walking 5 minutes"])
+def test_numeric_and_chinese_duration_claims_remain_eligible(text):
+    assert has_claimed_duration(inputs(text)["claims"][0])
+
+
+@pytest.mark.parametrize("text", [
+    "手划船票价150元/人，限乘1小时。",
+    "摇橹船180元/小时，每次租用1小时起。",
+    "游船票价55元/人，游玩1小时。",
+    "从码头乘船，1小时150元。",
+    "步行沿湖租船，每1小时收费150元。",
+    "周末排队二十分钟。",
+    "步行入口排队20分钟。",
+    "从地铁站出来后排队5分钟。",
+    "公园开放12小时。",
+    "从9点到17点营业8小时。",
+    "在公园步行游玩2小时。",
+    "建议沿湖散步游览1小时。",
+    "大约两三分钟。",
+    "沿湖走5公里，船票价格150元/小时。",
+])
+def test_non_journey_duration_never_starts_route_planning(text):
+    async def unexpected(*args):
+        pytest.fail("计费、营业、排队和游玩时长不能作为路线通行耗时")
+
+    result = asyncio.run(build_route_subgraph().ainvoke(inputs(text), context=VerificationCapabilities(
+        llm=unexpected, map_routing=FakeRouting(), subgraph_timeout_seconds=10)))['result']
+    assert result.status == "skipped"
+    assert not result.selected_claim_ids and not result.findings
+
+
+@pytest.mark.parametrize("text", [
+    "从断桥到苏堤大约20分钟。",
+    "断桥 → 白堤步行5分钟。",
+    "地铁站至公园需10分钟。",
+    "走到公园要5分钟，门票50元/人。",
+    "步行5分钟到码头，手划船150元/小时。",
+    "排队20分钟；从地铁站步行到公园只需5分钟。",
+    "公园开放8小时。步行到公园5分钟。",
+    "门票50元/人；from station to park takes 5 minutes.",
+    "A 5 minute walk from the station to the park.",
+    "从地铁站步行5分钟到开放的公园。",
+    "骑车10分钟至免费开放的西湖景区。",
+    "步行5分钟即可到达开放的码头。",
+    "从开放的公园步行5分钟到酒店。",
+    "排队20分钟后步行5分钟到公园。",
+])
+def test_journey_time_is_selected_by_content_even_if_claim_type_is_fact(text):
+    claim = inputs(text)['claims'][0].model_copy(update={"type": "FACT"})
+    assert has_claimed_duration(claim)
+
+
+def test_mixed_price_and_journey_claims_only_request_actual_route_plans():
+    price = "摇橹船180元/小时，每次租用1小时起。"
+    journey = "从地铁站步行到公园5分钟，门票50元/人。"
+    state = inputs(journey)
+    state['claims'][0] = state['claims'][0].model_copy(update={"type": "FACT"})
+    state['claims'].append(Claim(claim_id="c1", type="ROUTE", content=price,
+                                 sources=[{"source_type": "TEXT", "source_ref": None,
+                                           "source_text": price}]))
+    plan = make_plan("c0")
+    requested = []
+
+    async def model(prompt, task):
+        payload = json.loads(task)
+        requested.append(payload['active_claim_ids'])
+        if prompt.startswith("# Route Plan"):
+            return json.dumps([plan.model_dump(mode="json")])
+        return json.dumps([{"claim_id": "c0", "assessment": assessment(plan, "MATCHED", 360.0)}])
+
+    result = asyncio.run(build_route_subgraph().ainvoke(state, context=VerificationCapabilities(
+        llm=model, map_routing=FakeRouting(duration=360.0), place_resolver=resolve_ok(),
+        subgraph_timeout_seconds=10)))['result']
+    assert result.status == "completed" and result.selected_claim_ids == ['c0']
+    assert requested == [['c0'], ['c0']]
+    assert result.findings[0].assessment.verdict == "MATCHED"
+
+
+@pytest.mark.parametrize("intercity", [False, True])
+def test_map_routing_uses_confirmed_geography_and_preserves_explicit_intercity_endpoints(intercity):
+    hangzhou = {"name": "杭州市", "category": "boundary", "addresstype": "city",
+                "address": {"city": "杭州市", "country_code": "cn"}}
+    shanghai = hangzhou | {"name": "上海市", "address": {"city": "上海市", "country_code": "cn"}}
+    wrong = {"name": "杭州西湖", "lat": "22.7271967", "lon": "120.3230086",
+             "address": {"city": "高雄市", "country_code": "tw"}}
+    bridge = {"name": "断桥", "lat": "30.2609009", "lon": "120.1470304",
+              "address": {"city": "杭州市", "country_code": "cn"}}
+    dike = {"name": "白堤", "lat": "30.2589716", "lon": "120.1453238",
+            "address": {"city": "杭州市", "country_code": "cn"}}
+    station = {"name": "虹桥站", "lat": "31.2", "lon": "121.3",
+               "address": {"city": "上海市", "country_code": "cn"}}
+    rows = {"杭州": [hangzhou], "上海": [shanghai], "杭州西湖": [wrong], "断桥": [bridge],
+            "白堤": [dike], "上海虹桥站": [station]}
+    resolver = NominatimPlaceResolver(base_url="https://geo.test", min_interval_seconds=0.001,
+                                      transport=httpx.MockTransport(lambda req: httpx.Response(200, json=rows.get(req.url.params["q"], []))))
+    calls = []
+
+    class RecordingRouting(FakeRouting):
+        async def route(self, origin, destination, costing):
+            calls.append((origin, destination, costing))
+            return await super().route(origin, destination, costing)
+
+    state = inputs("从断桥到白堤步行5分钟。")
+    state["context"] = state["context"].model_copy(update={"target_place": "杭州西湖"})
+    plan = make_plan("c0").model_copy(update={"origin_text": "断桥",
+                                            "destination_text": "上海虹桥站" if intercity else "白堤"})
+    distance = 200000.0 if intercity else 269.0
+
+    async def exercise():
+        try:
+            return (await build_route_subgraph().ainvoke(state, context=VerificationCapabilities(
+                llm=model_returning(plan, "MATCHED", 360.0), place_resolver=resolver,
+                map_routing=RecordingRouting(duration=360.0, distance=distance), subgraph_timeout_seconds=10)))["result"]
+        finally:
+            await resolver.aclose()
+
+    result = asyncio.run(exercise())
+    assert result.status == "completed"
+    assert calls == [(Coordinates(30.2609009, 120.1470304),
+                      Coordinates(31.2, 121.3) if intercity else Coordinates(30.2589716, 120.1453238), "pedestrian")]
+    assert result.findings[0].evidence[0].distance_meters == distance
+
+
+def test_unconfirmed_route_geography_is_unverified_without_calling_routing():
+    bridge = {"name": "断桥", "lat": "31.0", "lon": "119.0", "address": {"city": "南京市"}}
+    resolver = NominatimPlaceResolver(base_url="https://geo.test", min_interval_seconds=0.001,
+                                      transport=httpx.MockTransport(lambda req: httpx.Response(200, json=[bridge])))
+
+    class NeverRouting(FakeRouting):
+        async def route(self, *args):
+            pytest.fail("未确认目标地域时不能采用异地同名坐标")
+
+    plan = make_plan("c0").model_copy(update={"origin_text": "断桥", "destination_text": "断桥"})
+
+    async def exercise():
+        try:
+            return (await build_route_subgraph().ainvoke(inputs(), context=VerificationCapabilities(
+                llm=model_returning(plan, "UNVERIFIED", None, cited=None), place_resolver=resolver,
+                map_routing=NeverRouting(), subgraph_timeout_seconds=10)))["result"]
+        finally:
+            await resolver.aclose()
+
+    result = asyncio.run(exercise())
+    assert result.status == "completed" and not result.findings[0].evidence
+    assert result.findings[0].assessment.verdict == "UNVERIFIED"

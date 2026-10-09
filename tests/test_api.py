@@ -10,6 +10,7 @@ from backend import main
 from backend.api import routes as api
 from backend.extraction import agent
 from backend.extraction.models import ClaimExtractionResult
+from backend.extraction.materials import LinkMaterial
 from backend.storage.repository import StorageRepository
 from backend.verification.models import ClaimFinding, Evidence, SubgraphResult
 from backend.verification.capabilities import VerificationCapabilities
@@ -28,9 +29,14 @@ def test_upload_persists_and_submission_recovers_in_request_order(tmp_path):
     async def skip_fact(*args):
         return "[]"
 
-    capabilities = VerificationCapabilities(llm=skip_fact)
+    class Reader:
+        async def read_note(self, url, **kwargs):
+            return LinkMaterial(url, url, '标题', '正文')
 
-    async def extract(target_place, description_text, links, images):
+    capabilities = VerificationCapabilities(llm=skip_fact, evidence_sources={'xiaohongshu': Reader()})
+
+    async def extract(target_place, description_text, links, images, *, link_materials):
+        assert [item.original_url for item in link_materials] == links
         captured.update(target_place=target_place, text=description_text, links=links, images=images)
         return ClaimExtractionResult(target_place="Agent 改写的地点", claims=[{
             "claim_id": "wrong-id", "type": "CROWD", "content": "周末人少。",
@@ -50,7 +56,7 @@ def test_upload_persists_and_submission_recovers_in_request_order(tmp_path):
     # 重启应用，确认数据不只是保存在内存。
     with TestClient(main.create_app(tmp_path, extract, capabilities=capabilities)) as client:
         payload = {"target_place": " 上海迪士尼乐园 ", "text": "周末人少", "image": codes[::-1],
-                   "link": ["https://example.com/a", "https://example.com/b"]}
+                   "link": [f"https://www.xiaohongshu.com/explore/{number:024x}" for number in (1, 2)]}
         response = client.post("/api/verifications", json=payload)
         assert response.status_code == 200
         data = response.json()
@@ -192,7 +198,7 @@ def test_missing_model_configuration_returns_503(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("timeout,status,detail", [
     (True, 504, "提取超时，请减少材料后重试"),
-    (False, 502, "Agent 提取失败，请检查模型配置、浏览器及链接；详情见后端日志"),
+    (False, 502, "模型返回的材料来源与本次提交不一致，来源校验未通过；请重试"),
 ])
 def test_extraction_errors_return_expected_responses(tmp_path, timeout, status, detail):
     async def extract(*args):
@@ -208,6 +214,38 @@ def test_extraction_errors_return_expected_responses(tmp_path, timeout, status, 
 
     assert response.status_code == status
     assert response.json() == {"detail": detail}
+
+
+def test_unsubmitted_source_failure_does_not_expose_reference(tmp_path, caplog):
+    unknown_ref = "https://www.xiaohongshu.com/explore/" + "a" * 24 + "?xsec_token=test-sensitive"
+
+    async def extract(*args):
+        return ClaimExtractionResult(target_place="公园", claims=[{
+            "claim_id": "claim_001", "type": "FACT", "content": "免费开放。",
+            "sources": [{"source_type": "LINK", "source_ref": unknown_ref, "source_text": None}],
+        }])
+
+    with TestClient(main.create_app(tmp_path, extract)) as client:
+        response = client.post("/api/verifications", json={"target_place": "公园", "text": "免费开放。"})
+
+    assert response.status_code == 502
+    assert "本次提交不一致" in response.json()["detail"]
+    assert unknown_ref not in response.text and "test-sensitive" not in caplog.text
+    error = next(record.exc_info[1] for record in caplog.records if record.exc_info)
+    assert all(set(issue) == {"claim_index", "source_index", "source_type", "reason"} for issue in error.issues)
+
+
+def test_generic_agent_failure_keeps_502_response(tmp_path):
+    from backend.common.errors import ExtractionFailed
+
+    async def extract(*args):
+        raise ExtractionFailed("Agent 未完成提取")
+
+    with TestClient(main.create_app(tmp_path, extract)) as client:
+        response = client.post("/api/verifications", json={"target_place": "公园", "text": "免费开放。"})
+
+    assert response.status_code == 502
+    assert response.json() == {"detail": "Agent 提取失败，请检查模型配置、浏览器及链接；详情见后端日志"}
 
 
 @pytest.mark.parametrize("error", [

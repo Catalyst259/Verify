@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .api.error_handlers import register_exception_handlers
 from .api.routes import create_router
+from .common.logging import install_link_redaction
 from .extraction.agent import extract_claims, read_config
 from .sources.nominatim import NominatimPlaceResolver
 from .sources.xiaohongshu import XiaohongshuSource
@@ -22,6 +23,7 @@ def create_app(
     data_directory: Path = ROOT / "backend/data", extractor=extract_claims,
     *, subgraphs=None, capabilities: VerificationCapabilities | None = None,
 ) -> FastAPI:
+    install_link_redaction()
     crawler = routing = places = None
     if capabilities is None:
         config = read_config()

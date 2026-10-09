@@ -15,6 +15,7 @@ import uvicorn
 
 from backend import main
 from backend.extraction import agent
+from backend.extraction.materials import LinkMaterial
 from backend.storage.repository import StorageRepository
 from backend.verification.capabilities import VerificationCapabilities
 from test_api import png
@@ -56,19 +57,12 @@ def test_drag_upload_to_real_browser_agent(tmp_path, monkeypatch, with_links, mo
             requests.append(await request.json())
         return await call_next(request)
 
-    @app.get("/article/{number}", response_class=HTMLResponse)
-    def article(number: int):
-        page_visits.append(number)
-        return f'<html lang="zh-CN"><body><h1>测试公园</h1><p>PAGE_MARKER_{number} 工作日上午人少。</p></body></html>'
-
     @app.post("/v1/chat/completions")
     async def completion(request: Request):
         body = await request.json()
         provider_calls.append(body)
         step = len(provider_calls)
-        if with_links and step <= 2:
-            action = {"navigate": {"url": f"{base_url}/article/{step}", "new_tab": False}}
-        else:
+        if step == 1:
             sources = [{"source_type": "IMAGE", "source_ref": code, "source_text": "测试图片"}
                        for code in requests[-1]["image"]]
             sources.append({"source_type": "TEXT", "source_ref": None, "source_text": "工作日上午人少"})
@@ -99,7 +93,14 @@ def test_drag_upload_to_real_browser_agent(tmp_path, monkeypatch, with_links, mo
     async def skip_fact(*args):
         return "[]"
 
-    app.mount("/", main.create_app(tmp_path, capabilities=VerificationCapabilities(llm=skip_fact)))
+    class Reader:
+        async def read_note(self, url, **kwargs):
+            number = int(url.rsplit('/', 1)[-1], 16)
+            page_visits.append(number)
+            return LinkMaterial(url, url, '测试公园', f'PAGE_MARKER_{number} 工作日上午人少。', (png('green'),))
+
+    app.mount("/", main.create_app(tmp_path, capabilities=VerificationCapabilities(
+        llm=skip_fact, evidence_sources={'xiaohongshu': Reader()})))
     # 挂载的子应用不会自动运行 lifespan。
     StorageRepository(tmp_path).initialize()
     with sync_playwright() as playwright, serve(app) as base_url:
@@ -116,7 +117,7 @@ def test_drag_upload_to_real_browser_agent(tmp_path, monkeypatch, with_links, mo
             page.goto(base_url)
             page.locator("#place").fill("测试公园")
             page.locator("#description").fill("工作日上午人少")
-            links = [base_url + "/article/1", base_url + "/article/2"] if with_links else []
+            links = [f'https://www.xiaohongshu.com/explore/{i:024x}' for i in (1, 2)] if with_links else []
             page.locator("#links").fill("\n".join(links))
             encoded_images = [base64.b64encode(png(color)).decode() for color in ("red", "blue")]
             page.locator("#dropzone").evaluate("""(zone, images) => {
@@ -132,24 +133,26 @@ def test_drag_upload_to_real_browser_agent(tmp_path, monkeypatch, with_links, mo
             output = json.loads(page.locator("#claims").text_content())
             assert output["context"]["target_place"] == "测试公园"
             assert output["run_id"]
-            assert output["status"] == "partial"
-            assert output["subgraph_results"]["fact"]["status"] == "skipped"
+            assert output["status"] == "completed"
+            assert all(result["status"] == "skipped" for result in output["subgraph_results"].values())
             assert set(output["subgraph_results"]) == {"fact", "route", "crowd", "experience"}
-            assert "本次未执行事实核验" in page.locator("#status").inner_text()
-            assert "路线、人流、体验核验尚未实现" in page.locator("#status").inner_text()
+            assert "本次未执行事实、路线、人流、体验核验" in page.locator("#status").inner_text()
+            assert "核验尚未实现" not in page.locator("#status").inner_text()
             assert output["claims"][0]["claim_id"] == "claim_001"
             assert requests[0]["link"] == links
             assert requests[0]["text"] == "工作日上午人少"
-            assert len(provider_calls) == (3 if with_links else 1)
+            assert len(provider_calls) == 1
             assert page_visits == ([1, 2] if with_links else [])
             for call in provider_calls:
                 messages = call["messages"]
-                assert Path("prompt.md").read_text() in messages[0]["content"]
+                assert Path("prompt.md").read_text(encoding="utf-8") in messages[0]["content"]
                 image_content = next(message["content"] for message in messages
                                      if isinstance(message["content"], list)
                                      and message["content"][0].get("text", "").startswith("用户上传图片"))
-                assert [part["image_url"]["url"].split(",", 1)[1] for part in image_content if part["type"] == "image_url"] == encoded_images
-                assert [part["text"].split(" = ")[1] for part in image_content if part["type"] == "text"] == requests[0]["image"]
+                expected_images = encoded_images + ([base64.b64encode(png('green')).decode()] * 2 if with_links else [])
+                assert [part["image_url"]["url"].split(",", 1)[1] for part in image_content if part["type"] == "image_url"] == expected_images
+                assert [part["text"].split(" = ")[1] for part in image_content[:4] if part["type"] == "text"] == requests[0]["image"]
+                assert [part['text'].split('source_ref = ')[1] for part in image_content[4:] if part['type'] == 'text'] == links
                 if model == "deepseek-flash":
                     assert call["response_format"] == {"type": "json_object"}
                     schema = json.loads(messages[-1]["content"].split("JSON：", 1)[1])
@@ -158,9 +161,9 @@ def test_drag_upload_to_real_browser_agent(tmp_path, monkeypatch, with_links, mo
                 assert '"search"' not in json.dumps(schema)
             if with_links:
                 for index in (1, 2):
-                    assert f"PAGE_MARKER_{index}" in json.dumps(provider_calls[index]["messages"])
-                    # 除上传原图外，模型也确实收到浏览器页面截图（包括 DeepSeek）。
-                    all_images = [part for message in provider_calls[index]["messages"]
+                    assert f"PAGE_MARKER_{index}" in json.dumps(provider_calls[0]["messages"])
+                    # 小红书配图和用户上传的图片均实际进入多模态消息。
+                    all_images = [part for message in provider_calls[0]["messages"]
                                   if isinstance(message["content"], list) for part in message["content"]
                                   if part["type"] == "image_url"]
                     assert len(all_images) > len(encoded_images)

@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 import os
 from pathlib import Path
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 import pytest
 
@@ -40,7 +40,8 @@ def search_html():
         '</body></html>')
 
 
-async def intercepted_source(tmp_path, monkeypatch, *, visits, route_detail=None, max_results=10):
+async def intercepted_source(tmp_path, monkeypatch, *, visits, route_detail=None, max_results=10,
+                             home_input_visible=True, home_cards_visible=True, home_feed_visible=None):
     source = XiaohongshuSource(tmp_path / "dedicated-profile", executable_path=CHROME,
                               max_results=max_results, pacing_seconds=0, timeout_seconds=30)
     original = source._ensure_context
@@ -53,13 +54,36 @@ async def intercepted_source(tmp_path, monkeypatch, *, visits, route_detail=None
             return
         visits.append(url.path)
         if url.path == urlsplit(HOME).path:
+            feed_input = (not home_input_visible and home_cards_visible) if home_feed_visible is None else home_feed_visible
+            # Normal visible input events create the route; application code has
+            # no direct-URL fallback. Feed focus replaces the initial editor.
+            script = """<script>
+                const legacy = document.querySelector('#search-input');
+                const submit = (e, ai) => e.addEventListener('keydown', event => {
+                    if (event.key === 'Enter') {
+                        location.href = (ai ? '/search_result_ai' : '/search_result') + '?keyword=' +
+                            encodeURIComponent(ai ? encodeURIComponent(e.value) : e.value);
+                    }
+                });
+                submit(legacy, false);
+                const feed = document.querySelector('#search-input-in-feeds');
+                if (feed) feed.addEventListener('focus', () => {
+                    const active = document.createElement('textarea');
+                    feed.replaceWith(active); submit(active, true); active.focus();
+                }, {once: true});
+            </script>"""
             await route.fulfill(status=200, content_type="text/html; charset=utf-8", body=(
-                '<html><body><section class="note-item">'
+                '<html><body>'
+                f'<input id="search-input" style="display:{"block" if home_input_visible else "none"}">' +
+                ('<div class="wendian-wrapper"><textarea id="search-input-in-feeds"></textarea></div>' if feed_input else '') +
+                f'<section class="note-item" style="display:{"block" if home_cards_visible else "none"}">'
                 f'<a class="cover" href="/explore/{HOME_NOTE_ID}?xsec_token=PRIVATE">主页卡片</a>'
-                '<span class="title">主页材料不可当作搜索结果</span></section></body></html>'))
+                '<span class="title">主页材料不可当作搜索结果</span></section>' + script + '</body></html>'))
             return
-        if url.path == "/search_result":
+        if url.path in {"/search_result", "/search_result_ai"}:
             query = parse_qs(url.query).get("keyword", [""])[0]
+            if url.path == "/search_result_ai":
+                query = unquote(query)
             if query == "登录墙":
                 html = '<html><body><div class="login-container">请登录</div></body></html>'
             elif query == "无结果":
@@ -189,7 +213,7 @@ def test_real_browser_rejects_http_failure_bodies_and_preserves_registered_parti
     asyncio.run(scenario())
 
 
-def test_real_browser_cancellation_closes_context_and_preserves_previous_registration(tmp_path, monkeypatch):
+def test_real_browser_cancellation_closes_query_pages_and_preserves_profile_and_registration(tmp_path, monkeypatch):
     async def scenario():
         visits, ledger, calls, entered = [], [], [], asyncio.Event()
         async def empty_second(route, identity):
@@ -202,10 +226,68 @@ def test_real_browser_cancellation_closes_context_and_preserves_previous_registr
         try:
             task = asyncio.create_task(source.search("合成公园", execute=hook(ledger, calls)))
             await asyncio.wait_for(entered.wait(), timeout=20)
+            context = source._context
             task.cancel()
             with pytest.raises(asyncio.CancelledError):
                 await task
-            assert len(ledger) == 1 and source._context is None and not source._lock.locked()
+            assert len(ledger) == 1 and source._context is context and not source._lock.locked()
+            assert all(page.url == "about:blank" for page in context.pages)
+            assert len(await source.search("下一主张", result_limit=1)) == 1
+            assert source._context is context
+        finally:
+            await source.aclose()
+    asyncio.run(scenario())
+
+
+def test_real_browser_source_quota_reads_only_first_unexcluded_body(tmp_path, monkeypatch):
+    async def scenario():
+        visits, ledger, calls = [], [], []
+        source = await intercepted_source(tmp_path, monkeypatch, visits=visits)
+        try:
+            result = await source.for_run().search("合成公园", result_limit=1, execute=hook(ledger, calls),
+                                                  excluded_ids=frozenset({f"{1:024x}"}))
+            assert result == ledger and len(result) == 1
+            assert canonical_note_id(result[0].url) == f"{2:024x}"
+            assert calls == [True, False]
+            assert visits == [urlsplit(HOME).path, "/search_result", f"/explore/{2:024x}"]
+            assert "PRIVATE" not in result[0].model_dump_json()
+        finally:
+            await source.aclose()
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("feed_visible", [True, False])
+def test_real_browser_hidden_home_search_input_uses_visible_feed_for_readiness_only(tmp_path, monkeypatch, feed_visible):
+    async def scenario():
+        visits = []
+        source = await intercepted_source(tmp_path, monkeypatch, visits=visits,
+                                          home_input_visible=False, home_cards_visible=feed_visible)
+        try:
+            if feed_visible:
+                results = await source.search("合成公园", result_limit=1)
+                assert len(results) == 1 and canonical_note_id(results[0].url) == f"{1:024x}"
+                assert canonical_note_id(results[0].url) != HOME_NOTE_ID
+                assert "主页材料" not in results[0].content
+                assert visits == [urlsplit(HOME).path, "/search_result_ai", f"/explore/{1:024x}"]
+            else:
+                with pytest.raises(XiaohongshuError, match="首页搜索控件未就绪"):
+                    await source.search("合成公园", result_limit=1)
+                assert visits == [urlsplit(HOME).path]
+        finally:
+            await source.aclose()
+    asyncio.run(scenario())
+
+
+def test_real_browser_new_feed_editor_without_home_cards_reads_exact_spaced_query(tmp_path, monkeypatch):
+    async def scenario():
+        visits = []
+        source = await intercepted_source(tmp_path, monkeypatch, visits=visits,
+            home_input_visible=False, home_cards_visible=False, home_feed_visible=True)
+        try:
+            results = await source.search("合成公园 公共卫生间", result_limit=1)
+            assert len(results) == 1 and canonical_note_id(results[0].url) == f"{1:024x}"
+            assert "真实 DOM 原文" in results[0].content and "主页材料" not in results[0].content
+            assert visits == [urlsplit(HOME).path, "/search_result_ai", f"/explore/{1:024x}"]
         finally:
             await source.aclose()
     asyncio.run(scenario())

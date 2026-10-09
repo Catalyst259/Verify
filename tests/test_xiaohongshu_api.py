@@ -9,6 +9,7 @@ import pytest
 from backend import main
 from backend.extraction import agent
 from backend.extraction.models import ClaimExtractionResult
+from backend.extraction.materials import LinkMaterial
 from backend.verification.capabilities import VerificationCapabilities
 from backend.verification.models import Evidence
 from backend.verification.subgraphs.facts.graph import build_fact_subgraph
@@ -19,7 +20,7 @@ from test_fact_workflow import assessment, make_plan
 INPUT_ID = "f" * 24
 
 
-async def extract_claim(*args):
+async def extract_claim(*args, **kwargs):
     return ClaimExtractionResult(target_place="公园", claims=[{
         "claim_id": "original", "type": "FACT", "content": "公园有停车场。",
         "sources": [{"source_type": "TEXT", "source_ref": None, "source_text": "公园有停车场。"}],
@@ -43,6 +44,9 @@ class OnlineSource:
         self.fail_after = fail_after
         self.calls = []
         self.closed = False
+
+    async def read_note(self, url, **kwargs):
+        return LinkMaterial(url, url, '公园', '公园有停车场。')
 
     async def search(self, query, *, execute, excluded_ids, deadline_at):
         self.calls.append((query, excluded_ids, deadline_at))
@@ -119,29 +123,31 @@ def run_api(tmp_path, monkeypatch, source, *, queries=("公园",)):
     assert finding["error"] is None and finding["assessment"]["verdict"] == "SUPPORTED"
     assert finding["assessment"]["supporting_evidence"] == [finding["evidence"][-1]["evidence_id"]]
     assert set(finding["assessment"]["context_evidence"]) == {item["evidence_id"] for item in finding["evidence"]}
-    assert all(excluded == frozenset({INPUT_ID}) and deadline.tzinfo is not None
+    assert source.calls[0][1] == frozenset({INPUT_ID})
+    assert all(INPUT_ID in excluded and deadline.tzinfo is not None
                for _, excluded, deadline in source.calls)
     return body, sessions[0]
 
 
-def test_one_http_search_registers_ten_online_notes_and_web_evidence(tmp_path, monkeypatch):
+def test_one_http_search_registers_first_online_note_and_web_evidence(tmp_path, monkeypatch):
     source = OnlineSource()
     before = datetime.now(timezone.utc)
     body, session = run_api(tmp_path, monkeypatch, source)
     evidence = body["subgraph_results"]["fact"]["findings"][0]["evidence"]
     assert [query for query, _, _ in source.calls] == ["公园"]
-    assert len(evidence) == 11 and len({item["evidence_id"] for item in evidence}) == 11
+    assert len(evidence) == 2 and len({item["evidence_id"] for item in evidence}) == 2
     assert all(item["source_type"] == "WEB" and datetime.fromisoformat(item["retrieved_at"]) >= before
                for item in evidence[:-1])
     assert evidence[-1]["source_type"] == "OFFICIAL"
     assert session.round.queries == 2 and session.round.results_per_query == [1, 10]
-    assert session.round.tool_calls == 13 and session.round.new_evidence_count == 11
+    assert session.round.tool_calls == 4 and session.round.new_evidence_count == 2
 
 
 def test_each_http_web_query_automatically_searches_the_injected_source(tmp_path, monkeypatch):
     source = OnlineSource(per_query=1)
     body, session = run_api(tmp_path, monkeypatch, source, queries=("公园", "公园 停车场"))
     assert [query for query, _, _ in source.calls] == ["公园", "公园 停车场"]
+    assert source.calls[1][1] == frozenset({INPUT_ID, f"{1:024x}"})
     assert len(body["subgraph_results"]["fact"]["findings"][0]["evidence"]) == 3
     assert session.round.tool_calls == 7 and session.round.queries == 4
 
@@ -151,17 +157,18 @@ def test_full_dual_source_queries_leave_room_for_web_body(tmp_path, monkeypatch)
     body, session = run_api(tmp_path, monkeypatch, source, queries=("公园", "公园 停车场"))
     evidence = body["subgraph_results"]["fact"]["findings"][0]["evidence"]
     assert [query for query, _, _ in source.calls] == ["公园", "公园 停车场"]
-    assert len(evidence) == 15 and len({item["evidence_id"] for item in evidence}) == 15
+    assert source.calls[1][1] == frozenset({INPUT_ID, f"{1:024x}"})
+    assert len(evidence) == 3 and len({item["evidence_id"] for item in evidence}) == 3
     assert all(item["source_type"] == "WEB" for item in evidence[:-1])
     assert evidence[-1]["source_type"] == "OFFICIAL"
-    assert session.round.tool_calls == 19 and session.round.new_evidence_count == 15
+    assert session.round.tool_calls == 7 and session.round.new_evidence_count == 3
 
 
 def test_partial_online_failure_keeps_notes_and_continues_web_evidence(tmp_path, monkeypatch):
-    source = OnlineSource(fail_after=2)
+    source = OnlineSource(fail_after=1)
     body, session = run_api(tmp_path, monkeypatch, source)
     fact = body["subgraph_results"]["fact"]
-    assert len(fact["findings"][0]["evidence"]) == 3
+    assert len(fact["findings"][0]["evidence"]) == 2
     assert fact["findings"][0]["evidence"][-1]["source_type"] == "OFFICIAL"
     assert "手动登录" in session.round.search_error
     assert any("手动登录" in note for note in fact["notes"])

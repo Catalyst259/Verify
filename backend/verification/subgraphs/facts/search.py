@@ -2,7 +2,8 @@
 
 import asyncio
 from collections.abc import Awaitable, Callable, Mapping
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
+from inspect import signature
 import json
 from time import perf_counter
 from urllib.parse import quote_plus, urlsplit
@@ -14,6 +15,7 @@ from backend.extraction.agent import load_config
 from backend.common.model_json import normalize_model_json
 from backend.sources.xiaohongshu import canonical_note_id
 from backend.verification.capabilities import EvidenceSource
+from backend.verification.budget import remaining
 from backend.verification.models import FactSourceType
 
 from ..diagnostics import record, timed
@@ -26,9 +28,15 @@ class SearchSession:
     """单条 Claim 一轮的真实取证记录；超时或 Agent 输出损坏也不丢失材料。"""
 
     def __init__(self, claim: FactClaimState, deadline_at: datetime, *, checked_at: datetime | None = None,
-                 input_urls: tuple[str, ...] = (), evidence_sources: Mapping[str, EvidenceSource] | None = None):
+                 input_urls: tuple[str, ...] = (), evidence_sources: Mapping[str, EvidenceSource] | None = None,
+                 source_result_limit: int | None = None):
         self.claim_id = claim.plan.claim_id
+        self.target = claim.plan.target
         self.deadline_at = deadline_at
+        # 编排骨架提供收尾截止时间；直接调用时仍使用原有三秒清理上限。
+        self.cleanup_deadline_at: datetime | None = None
+        # 仅保存截止前、经工具记录校验的完成结果；清理失败不能覆盖它。
+        self.completed_result: str | None = None
         self.round = FactRoundState(round_number=len(claim.rounds) + 1)
         self.evidence: list[FactEvidence] = []
         self.diagnostics: list[str] = []
@@ -36,6 +44,7 @@ class SearchSession:
                                    "checked_at": checked_at.isoformat() if checked_at else None}
         self.seen = {(item.url, item.content) for item in claim.evidence}
         self.evidence_sources = evidence_sources or {}
+        self.source_result_limit = source_result_limit
         self.input_note_ids = frozenset(identity for url in input_urls
                                         if (identity := canonical_note_id(url)) is not None)
 
@@ -45,10 +54,16 @@ class SearchSession:
             "queries": MAX_QUERIES - self.round.queries,
             "evidence": MAX_EVIDENCE_PER_ROUND - len(self.evidence),
             "max_results_per_query": MAX_RESULTS_PER_QUERY,
+            "max_source_results_per_query": self.source_result_limit or MAX_RESULTS_PER_QUERY,
+            "time_seconds": round(remaining(self.deadline_at), 3),
         }
 
     def exhausted(self) -> bool:
         return self.round.tool_calls >= MAX_TOOL_CALLS or len(self.evidence) >= MAX_EVIDENCE_PER_ROUND
+
+    def first_pass_complete(self) -> bool:
+        """完成本批实际正文配额；是否支持主张或需要补搜仍交给 Validate。"""
+        return self.source_result_limit is not None and len(self.evidence) >= self.source_result_limit
 
     def update_round(self, **changes):
         self.round = FactRoundState.model_validate(self.round.model_dump() | changes)
@@ -93,6 +108,10 @@ class SearchSession:
                     self.seen.add(key)
                     self.evidence.append(item)
                     self.update_round(new_evidence_count=len(self.evidence))
+                    if (canonical_note_id(item.url) is not None and self.first_pass_complete()
+                            and datetime.now(timezone.utc) < self.deadline_at):
+                        # 正文已完成，随后等待另一来源或关闭页面不能再丢失本批完成状态。
+                        self.completed_result = self.result().model_dump_json()
                     data = item.model_dump(mode="json")
             result = {"data": data}
         except Exception as error:
@@ -221,6 +240,47 @@ async def page_data(browser, url: str, script: str, *, diagnostic: dict | None =
         raise
 
 
+async def _search_source(session: SearchSession, query: str) -> str | None:
+    """共享实际 Source 动作及账本；工具并行调用和首正文路径使用相同预算。"""
+    source = session.evidence_sources["xiaohongshu"]
+    first_evidence = len(session.evidence)
+
+    async def crawler_execute(operation, *, query=False, **kwargs):
+        budget = session.remaining_budget()
+        source_count = sum(canonical_note_id(item.url) is not None
+                           for item in session.evidence[first_evidence:])
+        source_full = session.source_result_limit is not None and source_count >= session.source_result_limit
+        if not query and (source_full or budget["tool_calls"] <= 1 or budget["evidence"] <= 1):
+            return {"stopped": True,
+                    "deadline_reached": datetime.now(timezone.utc) >= session.deadline_at,
+                    "remaining_budget": budget}
+        return await session.execute(operation, query=query, **kwargs)
+
+    try:
+        # 普通 Agent 还需决策/结束；限额正文批次由代码收尾，不再预留模型时间。
+        source_deadline = session.deadline_at
+        if session.source_result_limit is None:
+            source_deadline -= timedelta(seconds=min(10, remaining(source_deadline) * .25))
+        with timed(session.diagnostics, "xiaohongshu_query", **session.diagnostic_context,
+                   remaining_ms=round(remaining(source_deadline) * 1000, 3)):
+            options = {}
+            parameters = signature(source.search).parameters
+            if session.source_result_limit is not None and "result_limit" in parameters:
+                options["result_limit"] = session.source_result_limit
+            if type(session.source_result_limit) is int and session.source_result_limit == 1 and "claim_id" in parameters:
+                options["claim_id"] = session.claim_id
+            seen_ids = frozenset(identity for url, _ in session.seen
+                                 if (identity := canonical_note_id(url)) is not None)
+            await source.search(query, execute=crawler_execute,
+                                excluded_ids=session.input_note_ids | seen_ids,
+                                deadline_at=source_deadline, **options)
+        return None
+    except Exception as error:
+        message = f"Xiaohongshu: {type(error).__name__}: {str(error) or '来源未完成'}"
+        session.update_round(search_error="; ".join(filter(None, [session.round.search_error, message])))
+        return message
+
+
 def create_tools(session: SearchSession, browser):
     from browser_use import Tools
     from browser_use.agent.views import ActionResult
@@ -236,7 +296,10 @@ def create_tools(session: SearchSession, browser):
 
     @tools.action("结束本轮取证；参数必须为空对象，由代码返回本轮实际登记的材料和错误。", param_model=FinishSearchParams)
     async def done(params: FinishSearchParams):
-        return ActionResult(is_done=True, success=True, extracted_content=session.result().model_dump_json())
+        raw = session.result().model_dump_json()
+        if datetime.now(timezone.utc) < session.deadline_at:
+            session.completed_result = raw
+        return ActionResult(is_done=True, success=True, extracted_content=raw)
 
     @tools.action("搜索网页候选（最多 10 个），需 read_page 读取正文；已配置的小红书并行读取 WEB 正文证据。")
     async def search_web(query: str):
@@ -259,27 +322,8 @@ def create_tools(session: SearchSession, browser):
             result = await session.execute(search, query=True, diagnostic=diagnostic)
         else:
             first_evidence = len(session.evidence)
-
-            async def crawler_execute(operation, *, query=False, **kwargs):
-                budget = session.remaining_budget()
-                if not query and (budget["tool_calls"] <= 1 or budget["evidence"] <= 1):
-                    return {"stopped": True,
-                            "deadline_reached": datetime.now(timezone.utc) >= session.deadline_at,
-                            "remaining_budget": budget}
-                return await session.execute(operation, query=query, **kwargs)
-
-            async def crawl():
-                try:
-                    await source.search(query, execute=crawler_execute, excluded_ids=session.input_note_ids,
-                                        deadline_at=session.deadline_at)
-                    return None
-                except Exception as error:
-                    message = f"Xiaohongshu: {type(error).__name__}: {str(error) or '来源未完成'}"
-                    session.update_round(search_error="; ".join(filter(None, [session.round.search_error, message])))
-                    return message
-
             result, crawler_error = await asyncio.gather(
-                session.execute(search, query=True, diagnostic=diagnostic), crawl(),
+                session.execute(search, query=True, diagnostic=diagnostic), _search_source(session, query),
             )
             result["crawler_evidence"] = [item.model_dump(mode="json") for item in session.evidence[first_evidence:]
                                           if canonical_note_id(item.url) is not None]
@@ -319,6 +363,32 @@ def create_tools(session: SearchSession, browser):
 
 async def run_search(session: SearchSession, system_prompt: str, task: str) -> str:
     """运行一个有界 browser-use Agent；结束或取消时关闭浏览器。"""
+    initial_actions = None
+    if session.source_result_limit is not None and session.evidence_sources.get("xiaohongshu") is not None:
+        try:
+            state = json.loads(task)
+            target = state["claim_state"]["plan"]["target"]
+            place = state["context"]["target_place"]
+            query = target if place in target else f"{place} {target}"
+            valid_query = (isinstance(target, str) and target == session.target
+                           and isinstance(place, str) and bool(place.strip()) and 0 < len(query) <= 100)
+        except (TypeError, ValueError, KeyError):
+            valid_query = False
+        if valid_query:
+            if session.source_result_limit == 1:
+                first_evidence = len(session.evidence)
+                await _search_source(session, query)
+                if (session.completed_result is not None and session.first_pass_complete()
+                        and any(canonical_note_id(item.url) is not None
+                                for item in session.evidence[first_evidence:])):
+                    # Source 已登记截止前完成的实际正文；包含清理期间记录的最新错误。
+                    session.completed_result = session.result().model_dump_json()
+                    return session.completed_result
+                if datetime.now(timezone.utc) >= session.deadline_at:
+                    raise TimeoutError("Search 已到内部截止时间")
+            else:
+                initial_actions = [{"search_web": {"query": query}}]
+
     from browser_use import Agent, Browser, ChatOpenAI
     from browser_use.llm.messages import UserMessage
     from browser_use.llm.openai.serializer import OpenAIMessageSerializer
@@ -360,25 +430,60 @@ async def run_search(session: SearchSession, system_prompt: str, task: str) -> s
                       executable_path=config["browser_executable_path"] or None)
 
     async def should_stop():
-        return session.exhausted() or datetime.now(timezone.utc) >= session.deadline_at
+        expired = datetime.now(timezone.utc) >= session.deadline_at
+        if session.first_pass_complete() and not expired:
+            session.completed_result = session.result().model_dump_json()
+        return session.first_pass_complete() or session.exhausted() or expired
 
+    original_cancel = None
     try:
+        system_prompt += ("\nremaining_budget.max_source_results_per_query 是本次来源批量新增正文上限；"
+                          "积压时会减少该上限。remaining_budget.time_seconds 是当前服务切片的剩余时间，"
+                          "本批已有相关正文时优先 done，不能为读完整批次耗尽结束时间。")
         agent = Agent(
             task=task, llm=llm, browser=browser, tools=create_tools(session, browser),
             extend_system_message=system_prompt,
             use_vision=False, use_judge=False, enable_planning=False, message_compaction=False,
             enable_signal_handler=False, directly_open_url=False, max_actions_per_step=1,
+            initial_actions=initial_actions,
             max_failures=2, final_response_after_failure=False, register_should_stop_callback=should_stop,
         )
         history = await agent.run(max_steps=min(config["max_steps"], MAX_TOOL_CALLS + 1))
-        if datetime.now(timezone.utc) >= session.deadline_at:
+        if session.completed_result is not None:
+            raw = session.completed_result
+        elif datetime.now(timezone.utc) >= session.deadline_at:
             raise TimeoutError("Search 已到内部截止时间")
-        if history.is_successful():
-            return str(history.final_result())
-        if session.exhausted():
-            return session.result().model_dump_json()
-        raise RuntimeError("Search Agent 未完成取证")
+        elif history.is_successful():
+            raw = str(history.final_result())
+        elif session.exhausted() or session.first_pass_complete():
+            raw = session.result().model_dump_json()
+        else:
+            raise RuntimeError("Search Agent 未完成取证")
+        raw = session.result(raw).model_dump_json()
+        session.completed_result = raw
+        return raw
+    except asyncio.CancelledError as cause:
+        original_cancel = cause
+        raise
     finally:
-        with timed(session.diagnostics, "browser_cleanup", **session.diagnostic_context):
-            async with asyncio.timeout(3):
-                await browser.kill()
+        async def cleanup():
+            with timed(session.diagnostics, "browser_cleanup", **session.diagnostic_context):
+                # Search 取消后的 finally 同样消耗预算，不能越过子图收尾截止时间。
+                cleanup_timeout = 3 if session.cleanup_deadline_at is None else min(3, remaining(session.cleanup_deadline_at))
+                async with asyncio.timeout(cleanup_timeout):
+                    await browser.kill()
+
+        cleanup_task = asyncio.create_task(cleanup())
+        try:
+            await asyncio.shield(cleanup_task)
+        except asyncio.CancelledError:
+            # 使用已预留的有界清理时间，随后继续传递原取消；硬截止再次取消仍会终止。
+            try:
+                await cleanup_task
+            except Exception:
+                pass  # 清理任务已记录失败，不能用清理异常覆盖原取消。
+            raise
+        except Exception:
+            if original_cancel is not None:
+                raise original_cancel
+            raise

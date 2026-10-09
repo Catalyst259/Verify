@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Literal, Protocol
 
 from .budget import RunBudget
 from .models import Evidence, PlaceReference
+from backend.extraction.materials import LinkMaterial
 
 if TYPE_CHECKING:
     from .subgraphs.facts.search import SearchSession
@@ -116,3 +117,4 @@ class VerificationCapabilities:
     # None 表示本次运行没有取证能力；仍可完成规划和缺证据判定。
     search: EvidenceSearch | None = call_search
     input_urls: tuple[str, ...] = ()
+    link_materials: tuple[LinkMaterial, ...] = ()

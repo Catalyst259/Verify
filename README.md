@@ -69,12 +69,14 @@ uv run uvicorn backend.main:app --host 127.0.0.1 --port 8000
 {
   "target_place": "上海迪士尼乐园",
   "text": "工作日上午不用排队",
-  "link": ["https://example.com/post-a", "https://example.com/post-b"],
+  "link": ["https://www.xiaohongshu.com/explore/0123456789abcdef01234567", "http://xhslink.com/o/example"],
   "image": ["file_上传接口返回的标识"]
 }
 ```
 
-后端重新读取图片原始 bytes，按顺序将 `file_code` 标签与多模态图片内容送入模型；根目录 `prompt.md` 原文追加到 Agent 系统提示词。使用 browser-use 的结构化输出并检查来源标识，统一顺序编号。禁用搜索工具，按提示词只读取提交链接及其必要页面内容。登录墙或不可访问页面仍可能需要用户补充截图。
+后端重新读取上传图片原始 bytes，按顺序将 `file_code` 标签与多模态图片送入模型。链接仅支持小红书图文笔记：复用专用登录会话读取标题、正文和全部轮播配图，再将材料交给同一提取模型；提取 Agent 不再自行访问网页。根目录 `prompt.md` 追加到系统提示词，并检查来源标识、统一顺序编号。笔记配图来源为 `LINK`，对应提交的原始链接，原笔记不能成为后续独立佐证。
+
+页面可直接粘贴完整分享文案，前端提取其中的 URL；API 的 `link` 仍是纯 URL 数组。支持 `xiaohongshu.com`/`www.xiaohongshu.com` 的 `/explore/{24位ID}`、`/discovery/item/{ID}`、`/search_result/{ID}`，以及 `xhslink.com` 分享短链。以上示例仅演示格式，需要替换成可访问的真实笔记。用户主页、搜索列表、其他网站和视频笔记不支持。链接失败会显示条目序号和原因，不会静默跳过配图；详见 [小红书链接图文核验](docs/XIAOHONGSHU_LINK_MATERIALS.md)。
 
 地点仅限定核验范围。前端要求文字、链接、图片至少提供一种，空材料会在发请求前提示；有材料但没有明确说法时仍可返回 `no_claims`。HTTP API 保留仅地点请求返回 `no_claims` 的兼容行为，不会凭地点名称主动补造主张。
 
@@ -135,16 +137,18 @@ async def collect(query):
 
 地点解析、地图路线、模型和搜索通过 `VerificationCapabilities` 注入 LangGraph runtime context，不写入 State。各类子图的 Plan、Validate 每轮各执行一次 OpenAI 兼容调用，复用 `load_config()` 读取模型配置；三个节点加载各自提示词，仅 Fact 的 Plan 额外加载 `fact-plan` skill。`llm` 和 `search` 可替换为测试依赖；`search=None` 表示本次运行没有该类别的取证能力，子图据此记为缺证据而非失败。`map_routing` 或 `place_resolver` 为 `None` 时，`route` 同样只能给「证据不足」，不得猜测坐标或折算时长。
 
-Search 使用 browser-use Agent 和本地 Chromium，通过 DuckDuckGo HTML 搜索网页候选，并自动并行调用 `evidence_sources["xiaohongshu"]` 实时读取笔记。每条 Claim 最多两轮，每轮最多 20 次搜索/读取调用（失败也计数）、5 次查询、每次最多 10 个候选及 15 份新增证据。同时最多运行 3 个 Claim 的网页浏览器，小红书专用会话串行访问。证据 ID、抓取时间和预算由代码维护，Agent 输出须与实际工具记录一致。Fact 与外层子图默认超时 300 秒，小红书单次调用默认 120 秒且受剩余截止时间限制。通用 `evidence_sources["web_search"]` 仍为占位；实际网页搜索保留原实现，小红书通过已有来源注册表接入。网页读取不支持交互式登录或图片正文，小红书会话通过单独登录命令维护。
+首批一份正文时，Search 先复用 `evidence_sources["xiaohongshu"]` 实时读取笔记；取得有效正文后直接进入判定，未取得时使用原 browser-use Agent 和本地 Chromium 网页后备流程。网页工具仍通过 DuckDuckGo HTML 搜索候选，并并行调用小红书来源。每条 Claim 最多两轮，每轮最多 20 次搜索/读取调用（失败也计数）、5 次查询、每次最多 10 个候选及 15 份新增证据。配置小红书时所有类别共享 1 个 Claim 网页取证槽位，匹配专用会话的串行容量；其他网页来源默认共享 2 个，地图仍独立使用 2 个槽位。证据 ID、抓取时间和预算由代码维护，Agent 输出须与实际工具记录一致。一次核验共享 240 秒运行预算，图片提取和地点解析消耗的时间也计入；子图单独调用时默认上限为 300 秒，经主图调用时只能使用运行预算的剩余量。小红书单次调用默认 120 秒且受剩余截止时间限制。通用 `evidence_sources["web_search"]` 仍为占位；实际网页搜索保留原实现，小红书通过已有来源注册表接入。网页读取不支持交互式登录或图片正文，小红书会话通过单独登录命令维护。
 
-正常缺证据的 `UNVERIFIED` 属于已完成判定；技术失败单独记录，补搜失败保留旧判定和已取得材料。内部截止时间早于主图硬超时，Search 为 Validate 预留时间，浏览器在结束或取消时清理。其他子图不受 Fact 失败影响。
+正常缺证据的 `UNVERIFIED` 属于已完成判定；技术失败单独记录，补搜失败保留旧判定和已取得材料。内部截止时间依据共享预算计算，早于主图硬超时；Search 的排队和执行一起计时，为 Validate 预留时间。排队或取证超时会保留已完成主张和已取得材料，并明确标注未完成项。浏览器在结束或取消时清理，其他子图不受 Fact 失败影响。图片超时的原因与回归说明见 [图片核验超时修复](docs/IMAGE_SEARCH_TIMEOUT.md)。
+
+积压运行按最多三十秒的单条服务窗口进行首轮取证，小红书候选和正文均受本批实际配额限制，取得真实正文后及时返回判定；可选补搜若不能容纳下一整波服务，会保留本轮结论与未解决问题。正常取消安全关闭查询页后保留小红书上下文。路线起终点按供应商确认的城市范围解析，范围不明时保留未知。实现与边界见 [地点范围与多主张取证修复](docs/GEOGRAPHY_THROUGHPUT_RECOVERY.md)。
 
 Fact 的诊断以 JSON 字符串追加到 `subgraph_results.fact.notes`，同时写入带 `fact_diagnostic` 前缀的后端日志；这些记录不作为证据，也不进入 Plan/Validate 的模型输入：
 
 - `page_failure`：包含 `claim_id`、`round_number`、`tool_call`、操作、请求 URL、最终 URL、HTTP 状态、标题（最多 300 字符）、页面片段（最多 1000 字符）、加载状态、挑战页信号和异常。`navigation_ms`、`dom_read_ms`、`snapshot_ms`、`elapsed_ms` 分别记录导航、DOM 读取、现场采集和整次工具调用耗时。
 - HTTP 状态取自浏览器主文档的 Navigation Timing，不额外请求网页；浏览器未提供时为 `null`，不能按 200 处理。导航失败且无法确认新文档已加载时，页面字段保留 `null`，避免记录上一页的状态。现场采集失败会保留 `snapshot_error`，不覆盖原始异常。
 - `category` 根据可观察信号分类：`rate_limited`（429）、`challenge`（验证表单或人机验证文本）、`access_denied`（403，不单独认定反爬）、`http_error`（其他 HTTP 错误）、`load_incomplete`（未识别到搜索结果且文档仍在加载）、`parse_error`（文档加载完成但未匹配结果/空结果标记，可能布局变化）。导航及 DOM 异常另记 `load_error`/`dom_error`、`*_timeout` 或 `*_cancelled`；信号不足为 `unknown`。正常无结果不报错。已识别的 HTTP 错误页和挑战页不作为正文证据保存。
-- `stage_timing`：记录 `plan`、`search`、`validate`、每条主张的 `search_claim`、每次 `search_llm` 和 `browser_cleanup` 耗时与执行结果。`search_claim.queue_ms` 为并发槽位等待时间，`remaining_ms` 为开始执行时的剩余时间；耗时单位均为毫秒，嵌套阶段不可直接相加。
+- `stage_timing`：记录 `plan`、`search`、`validate`、每条主张的 `search_claim`、每次 `search_llm` 和 `browser_cleanup` 耗时与执行结果。`search_claim.elapsed_ms` 包含排队和执行，`queue_ms` 为并发槽位等待时间，`remaining_ms` 为取得槽位时的剩余时间；若排队即超时，则保留开始排队时的剩余量。耗时单位均为毫秒，嵌套阶段不可直接相加。
 
 流程与模块说明见 [主图设计](docs/成果/主图设计.md)。实现参考 [LangGraph Graph API](https://docs.langchain.com/oss/python/langgraph/graph-api) 和 [子图通信](https://docs.langchain.com/oss/python/langgraph/use-subgraphs)。
 

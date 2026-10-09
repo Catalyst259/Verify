@@ -3,6 +3,7 @@
 import asyncio
 from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
+from urllib.parse import quote, urlencode
 
 import pytest
 
@@ -18,10 +19,43 @@ def cards(count=10):
              "title": f"卡片标题 {number}", "author": "卡片作者"} for number in range(1, count + 1)]
 
 
+class FakeLocator:
+    def __init__(self, page, selector):
+        self.page, self.selector = page, selector
+        self.first = self
+
+    async def is_visible(self):
+        return self.page.context.controls.get(self.selector, False)
+
+    async def count(self):
+        return 1 if await self.is_visible() else 0
+
+    async def evaluate(self, script):
+        return self.selector == "textarea:focus" and self.page.context.focused_editor_allowed
+
+    async def click(self, **kwargs):
+        self.page.context.ui_actions.append((self.selector, "click"))
+        self.page.context.controls["textarea:focus"] = True
+
+    async def fill(self, value, **kwargs):
+        self.page.context.ui_actions.append((self.selector, "fill"))
+        self.value = value
+
+    async def press(self, key, **kwargs):
+        assert key == "Enter"
+        self.page.context.ui_actions.append((self.selector, "Enter"))
+        route = "/search_result_ai" if self.selector == "textarea:focus" else "/search_result"
+        keyword = quote(self.value, safe="") if route.endswith("_ai") else self.value
+        await self.page.goto("https://www.xiaohongshu.com" + route + "?" + urlencode({"keyword": keyword}))
+
+
 class FakePage:
     def __init__(self, context):
         self.context, self.url, self.closed = context, "about:blank", False
         self.mouse = SimpleNamespace(wheel=self.wheel)
+
+    def locator(self, selector):
+        return FakeLocator(self, selector)
 
     async def wheel(self, *args):
         pass
@@ -42,6 +76,8 @@ class FakePage:
             return self.context.cards
         if script == xhs.EMPTY_JS:
             return not self.context.cards
+        if script == xhs.HOME_READY_JS:
+            return True
         if script == xhs.DETAIL_JS:
             return {"title": "详情标题", "content": f"原始正文 {identity}", "author": "公开作者",
                     "publish_time": self.context.publish_time, "detail_found": True}
@@ -59,6 +95,9 @@ class FakeContext:
         self.publish_time = "昨天"
         self.visits, self.pages = [], []
         self.closed = False
+        self.controls = {"#search-input": True, "#search-input-in-feeds": False, "textarea:focus": False}
+        self.focused_editor_allowed = True
+        self.ui_actions = []
 
     async def new_page(self):
         page = FakePage(self)
@@ -219,7 +258,7 @@ def test_publication_preserves_precision(tmp_path, monkeypatch, publication, exp
     asyncio.run(scenario())
 
 
-def test_cancellation_resets_context_before_next_query_uses_profile(tmp_path, monkeypatch):
+def test_cancellation_closes_query_pages_and_reuses_healthy_profile(tmp_path, monkeypatch):
     async def scenario():
         source, contexts, drivers = fake_source(tmp_path, monkeypatch, max_results=1)
         entered, block = asyncio.Event(), asyncio.Event()
@@ -234,9 +273,30 @@ def test_cancellation_resets_context_before_next_query_uses_profile(tmp_path, mo
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
-        assert contexts[0].closed and drivers[0].stopped and not source._lock.locked()
+        assert not contexts[0].closed and not drivers[0].stopped and not source._lock.locked()
+        assert all(page.closed for page in contexts[0].pages)
         monkeypatch.setattr(source, "_read", original_read)
-        assert len(await source.search("第二关键词")) == 1 and len(contexts) == 2
+        assert len(await source.search("第二关键词")) == 1 and len(contexts) == 1
+        await source.aclose()
+    asyncio.run(scenario())
+
+
+def test_query_deadline_closes_pages_without_restarting_logged_in_browser(tmp_path, monkeypatch):
+    async def scenario():
+        source, contexts, drivers = fake_source(tmp_path, monkeypatch, max_results=1, timeout_seconds=.02)
+        original_read = source._read
+
+        async def blocked_read(*args):
+            await asyncio.Event().wait()
+
+        monkeypatch.setattr(source, "_read", blocked_read)
+        with pytest.raises(xhs.XiaohongshuError, match="限定时间"):
+            await source.search("公园")
+        assert source._context is contexts[0] and not contexts[0].closed and not drivers[0].stopped
+        assert all(page.closed for page in contexts[0].pages) and not source._lock.locked()
+        monkeypatch.setattr(source, "_read", original_read)
+        source.timeout_seconds = 120
+        assert len(await source.search("下一主张")) == 1 and len(contexts) == 1
         await source.aclose()
     asyncio.run(scenario())
 
@@ -273,6 +333,31 @@ def test_second_page_creation_failure_closes_first_page_context_and_driver(tmp_p
         with pytest.raises(xhs.XiaohongshuError):
             await source.search("公园")
         assert contexts[0].closed and drivers[0].stopped and source._context is None
+        assert not source._lock.locked()
+        await source.aclose()
+    asyncio.run(scenario())
+
+
+def test_cancelled_page_creation_resets_context_with_unknown_pending_page(tmp_path, monkeypatch):
+    async def scenario():
+        source, contexts, drivers = fake_source(tmp_path, monkeypatch)
+        context = await source._ensure_context()
+        original = context.new_page
+        entered = asyncio.Event()
+
+        async def blocked_second_page():
+            if context.pages:
+                entered.set()
+                await asyncio.Event().wait()
+            return await original()
+
+        monkeypatch.setattr(context, "new_page", blocked_second_page)
+        task = asyncio.create_task(source.search("公园"))
+        await entered.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert context.closed and drivers[0].stopped and source._context is None
         assert not source._lock.locked()
         await source.aclose()
     asyncio.run(scenario())

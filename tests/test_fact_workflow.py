@@ -193,11 +193,11 @@ def test_empty_search_stops_after_two_rounds_and_missing_capability_skips_retry(
         return session.result().model_dump_json()
 
     result = run(model, empty)
-    assert len(calls) == 4 and result.status == "completed"
+    assert len(calls) == 2 and result.status == "completed"
     assert result.findings[0].assessment.remaining_gaps and result.findings[0].error is None
     calls.clear()
     result = run(model)
-    assert len(calls) == 2 and result.status == "completed"
+    assert len(calls) == 1 and result.status == "completed"
     assert "未提供搜索能力" in result.notes[0]
 
 
@@ -288,11 +288,11 @@ def test_openai_call_uses_config_and_preserves_array_protocol(monkeypatch, finis
     def respond(request):
         captured.append(request)
         return httpx.Response(200, json={"id": "test", "object": "chat.completion", "created": 0,
-            "model": "deepseek-flash", "choices": [{"index": 0, "finish_reason": finish_reason,
+            "model": "compatible-model", "choices": [{"index": 0, "finish_reason": finish_reason,
                                                      "message": {"role": "assistant", "content": content}}]})
 
     monkeypatch.setattr(llm, "load_config", lambda: {"api_key": "test-only", "base_url": "https://model.test/v1",
-                                                     "model": "deepseek-flash", "timeout_seconds": 10})
+                                                     "model": "compatible-model", "timeout_seconds": 10})
     monkeypatch.setattr(llm, "AsyncOpenAI", lambda **kwargs: AsyncOpenAI(
         **kwargs, http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond))))
     if finish_reason == "stop":
@@ -305,21 +305,21 @@ def test_openai_call_uses_config_and_preserves_array_protocol(monkeypatch, finis
     assert request.headers["authorization"] == "Bearer test-only"
     body = json.loads(request.content)
     assert body["messages"] == [{"role": "system", "content": "系统指令"}, {"role": "user", "content": "业务状态"}]
-    assert body["model"] == "deepseek-flash" and "response_format" not in body
-    assert body["thinking"] == {"type": "disabled"} and len(captured) == 1
+    assert body["model"] == "compatible-model" and "response_format" not in body
+    assert "thinking" not in body and len(captured) == 1
 
 
-@pytest.mark.parametrize("invalid", [
-    None,
-    "下面是结果：\n```json\n[]\n```",
-    "```json\n[]\n```\n说明",
-    "```json\n[]",
-    "```python\n[]\n```",
-    "```json\n[}\n```",
-    "```json\n[]\n```\n```json\n[]\n```",
-    "```json\n[{\"claim_id\": \"c0\"}]\n```",
+@pytest.mark.parametrize("invalid,plan_calls", [
+    (None, 1),
+    ("下面是结果：\n```json\n[]\n```", 2),
+    ("```json\n[]\n```\n说明", 2),
+    ("```json\n[]", 2),
+    ("```python\n[]\n```", 2),
+    ("```json\n[}\n```", 2),
+    ("```json\n[]\n```\n```json\n[]\n```", 2),
+    ("```json\n[{\"claim_id\": \"c0\"}]\n```", 2),
 ])
-def test_fenced_model_response_through_plan_and_validate(monkeypatch, invalid):
+def test_fenced_model_response_through_plan_and_validate(monkeypatch, invalid, plan_calls):
     calls, searches = [], []
 
     def respond(request):
@@ -336,11 +336,11 @@ def test_fenced_model_response_through_plan_and_validate(monkeypatch, invalid):
         if invalid is not None and step == "plan":
             content = invalid
         return httpx.Response(200, json={"id": "test", "object": "chat.completion", "created": 0,
-            "model": "deepseek-flash", "choices": [{"index": 0, "finish_reason": "stop",
+            "model": "compatible-model", "choices": [{"index": 0, "finish_reason": "stop",
                                                      "message": {"role": "assistant", "content": content}}]})
 
     monkeypatch.setattr(llm, "load_config", lambda: {"api_key": "test-only", "base_url": "https://model.test/v1",
-                                                     "model": "deepseek-flash", "timeout_seconds": 10})
+                                                     "model": "compatible-model", "timeout_seconds": 10})
     monkeypatch.setattr(llm, "AsyncOpenAI", lambda **kwargs: AsyncOpenAI(
         **kwargs, http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond))))
 
@@ -356,5 +356,5 @@ def test_fenced_model_response_through_plan_and_validate(monkeypatch, invalid):
         assert result.findings[0].assessment.verdict == "SUPPORTED"
         assert calls == ["plan", "validate"] and searches == ["c0"]
     else:
-        assert result.status == "failed" and result.error.startswith(("Plan: ValueError:", "Plan: ValidationError:"))
-        assert calls == ["plan"] and not searches
+        assert result.status == "failed" and result.error.startswith(("Plan: ModelOutputError:", "Plan: ValidationError:"))
+        assert calls == ["plan"] * plan_calls and not searches

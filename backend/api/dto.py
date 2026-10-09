@@ -1,6 +1,6 @@
-from urllib.parse import urlsplit
-
 from pydantic import BaseModel, Field, field_validator
+
+from backend.common.xiaohongshu_links import valid_note_url
 
 
 class VerificationRequest(BaseModel):
@@ -21,8 +21,8 @@ class VerificationRequest(BaseModel):
     @field_validator("link")
     @classmethod
     def valid_links(cls, values):
-        for value in values:
-            url = urlsplit(value)
-            if url.scheme not in {"http", "https"} or not url.hostname or url.username:
-                raise ValueError("链接必须是完整的 HTTP(S) URL")
-        return values
+        links = [value.strip() for value in values]
+        for index, value in enumerate(links, 1):
+            if not valid_note_url(value):
+                raise ValueError(f"第 {index} 条链接必须是小红书笔记链接或 xhslink.com 分享短链")
+        return links

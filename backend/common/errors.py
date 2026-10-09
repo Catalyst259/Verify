@@ -9,9 +9,33 @@ class ModelNotConfigured(Exception):
     """模型缺少必要配置，异常消息为可向用户展示的配置提示。"""
 
 
+class ModelOutputError(ValueError):
+    """供应商响应不完整或不符合 JSON 传输格式；消息不包含原始模型输出。"""
+
+
 class ExtractionTimeout(Exception):
     """主张提取未在限定时间内完成。"""
 
 
 class ExtractionFailed(Exception):
     """Agent 未完成提取，或返回结果不符合结构、来源约束。"""
+
+
+class ExtractionSourceMismatch(ExtractionFailed):
+    """来源不属于本次材料；只记录位置和原因，不记录材料内容或标识。"""
+
+    def __init__(self, issues):
+        self.issues = tuple({
+            "claim_index": issue["claim_index"], "source_index": issue["source_index"],
+            "source_type": issue["source_type"], "reason": issue["reason"],
+        } for issue in issues)
+        text_only = self.issues and all(issue["source_type"] == "TEXT" for issue in self.issues)
+        super().__init__("Agent 引用了未提交的文字材料" if text_only else "Agent 返回了未提交的材料来源")
+
+
+class LinkReadError(Exception):
+    """可向用户显示的链接读取错误；detail 不含原始签名链接或浏览器异常。"""
+
+    def __init__(self, detail: str, status_code: int = 502):
+        super().__init__(detail)
+        self.status_code = status_code

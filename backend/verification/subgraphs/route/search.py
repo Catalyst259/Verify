@@ -63,8 +63,19 @@ async def run_route_search(session: RouteSearchSession, system_prompt: str, task
     （measured_seconds 为 None）。两者都不得用直线距离折算出一个时长来充数。
     """
     plan = session.plan
-    origin = await resolver(plan.origin_text) if resolver is not None else None
-    destination = await resolver(plan.destination_text) if resolver is not None else None
+    context = json.loads(task).get("context", {})
+    geographic_scope = context.get("target_place", "")
+
+    async def resolve(text):
+        if resolver is None:
+            return None
+        scoped = getattr(resolver, "resolve_scoped", None)
+        if callable(scoped):
+            return await scoped(text, scope=geographic_scope)
+        return await resolver(text)
+
+    origin = await resolve(plan.origin_text)
+    destination = await resolve(plan.destination_text)
     start, end = _coordinates(origin), _coordinates(destination)
     if start is None or end is None:
         session.update_round(search_error="起终点未解析到具体 POI，无法测量路线")

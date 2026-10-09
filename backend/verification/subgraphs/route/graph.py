@@ -4,6 +4,7 @@
 """
 
 from datetime import datetime
+import re
 
 from langgraph.runtime import Runtime
 
@@ -14,6 +15,34 @@ from .model import RoutePlan, RouteValidateResult
 from .prompts import load_system_prompt
 from .search import RouteSearchSession, run_route_search
 from .state import RouteClaimState, RouteState, PlanState, ValidateState
+
+
+def has_claimed_duration(claim) -> bool:
+    """只测原文中的通行耗时；计费、排队、营业和游玩时长不属于路线测量。"""
+    duration = (r"(?:\d+(?:\.\d+)?|[零〇一二两三四五六七八九十百千万半]+)\s*个?\s*"
+                r"(?:秒(?:钟)?|分钟?|小时|钟头|刻钟|seconds?\b|secs?\b|minutes?\b|mins?\b|hours?\b|hrs?\b)")
+    travel = (r"步行|走路|徒步|骑行|骑车|骑自行车|开车|驾车|自驾|车程|通勤|走(?:到|至)|沿.+?走|"
+              r"从.+?(?:到|至)|\S+(?:到|至)\S|[→➡➜]|"
+              r"\b(?:walk(?:ing)?|drive|driving|cycling|commute|from\b.+?\bto)\b")
+    non_travel = r"(?:排队|等候|等待|营业|开放|游玩|游览|参观|游逛|租用|起租|限乘|计费|收费|\b(?:queue|waiting|opening|rental)\b)"
+    duration_cues = r"(?:\s|约|大约|大概|需要|需|要|至少|最多|通常|预计|建议|时间|时长|为|可|共|至多|最少|：|:|for|about)*"
+    # 句段隔离避免同一主张的门票、排队描述给另一段行程附上时长。
+    for clause in re.split(r"[，,。；;！？!?\n]", claim.content):
+        if not re.search(travel, clause, flags=re.IGNORECASE):
+            continue
+        for match in re.finditer(duration, clause, flags=re.IGNORECASE):
+            before, after = clause[:match.start()], clause[match.end():]
+            # 限定词须直接描述这段时长；“到开放的公园”只是在修饰目的地。
+            if re.search(non_travel + duration_cues + r"$", before, flags=re.IGNORECASE):
+                continue
+            if re.match(r"\s*(?:的)?" + non_travel, after, flags=re.IGNORECASE):
+                continue
+            if re.search(r"(?:元|块|人民币)\s*(?:[/／]|每)\s*$|每\s*$", before):
+                continue
+            if re.match(r"\s*(?:[¥￥]\s*)?\d+(?:\.\d+)?\s*(?:元|块|人民币)", after):
+                continue
+            return True
+    return False
 
 
 def check_plan(old: RouteClaimState, plan: RoutePlan) -> None:
@@ -96,6 +125,8 @@ ROUTE_SPEC = CategorySpec(
     check_assessment=check_assessment,
     needs_more=needs_more,
     search_runner=route_search_runner,
+    accepts_claim=has_claimed_duration,
+    uses_browser=False,
 )
 
 
