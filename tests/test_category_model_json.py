@@ -73,3 +73,28 @@ def test_deepseek_json_mode_plan_and_validate_keep_schema_checks(monkeypatch):
     assert result.status == "completed"
     assert result.findings[0].assessment.verdict == "SUPPORTED"
     assert len(calls) == 2
+
+
+def test_deepseek_invalid_fact_type_is_corrected_at_plan_boundary(monkeypatch):
+    def content(body):
+        state = json.loads(body["messages"][1]["content"])
+        if body["messages"][0]["content"].startswith("# Fact Plan"):
+            item = make_plan("c0")
+            if "planning_feedback" not in state:
+                item["fact_type"] = "FACT"
+            else:
+                assert state["planning_feedback"]["c0"]["rejected_plan"]["fact_type"] == "FACT"
+            return json.dumps({"items": [item]})
+        return json.dumps({"items": [{"claim_id": "c0", "assessment":
+            assessment(state["claim_states"]["c0"], sufficient=True)}]})
+
+    calls = provider(monkeypatch, content)
+
+    async def search(session, *args):
+        await read(session)
+        return session.result().model_dump_json()
+
+    result = run(llm.complete, search)
+    assert result.status == "completed" and len(calls) == 3
+    assert all(body["response_format"] == {"type": "json_object"} for body in calls)
+    assert result.findings[0].assessment.verdict == "SUPPORTED"

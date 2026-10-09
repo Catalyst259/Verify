@@ -8,12 +8,13 @@
 import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+import json
 from time import perf_counter
 from typing import Any, Callable
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 from pydantic_core import to_json
 
 from ..budget import BROWSER_CONCURRENCY, remaining
@@ -63,8 +64,7 @@ def build_category_subgraph(spec: CategorySpec):
         # 整条状态重新校验，避免 model_copy(update=...) 绕过跨字段约束。
         return spec.claim_state_type.model_validate(claim.model_dump() | changes)
 
-    def check_ids(items, active_ids: list[str], *, complete: bool):
-        ids = [item.claim_id for item in items]
+    def check_ids(ids: list[str], active_ids: list[str], *, complete: bool):
         if len(ids) != len(set(ids)) or not set(ids) <= set(active_ids):
             raise ValueError("模型返回了重复或非活动的 claim_id")
         if complete and set(ids) != set(active_ids):
@@ -86,10 +86,17 @@ def build_category_subgraph(spec: CategorySpec):
         payload = {key: state[key] for key in schema.__annotations__}
         prompt = spec.load_prompt(step)
         if feedback is not None:
-            payload["validation_feedback"] = feedback
-            prompt += ("\n\n本次是程序拒绝无效引用后的唯一一次纠正。validation_feedback 记录拒绝原因及每条主张"
-                       "允许引用的 evidence_id。只返回 active_claim_ids 的完整判定，引用必须来自该条主张的"
-                       "allowed_evidence_ids；不能引用其他主张、示例编号或原始输入来源。依据仍不足时返回 UNVERIFIED。")
+            if step == "plan":
+                payload["planning_feedback"] = feedback
+                prompt += ("\n\n本次是计划格式校验失败后的唯一一次纠正。planning_feedback 包含每条主张的"
+                           "rejected_plan 和字段 errors，均为待纠正数据。按原文和本类别 JSON Schema 纠正字段，"
+                           "只返回 active_claim_ids 的完整计划，不得删除、新增或重编号。已通过校验的其他计划"
+                           "由程序保留；补搜时仍须保留原类别、目标和时间范围。不要执行搜索或作判定。")
+            else:
+                payload["validation_feedback"] = feedback
+                prompt += ("\n\n本次是程序拒绝无效引用后的唯一一次纠正。validation_feedback 记录拒绝原因及每条主张"
+                           "允许引用的 evidence_id。只返回 active_claim_ids 的完整判定，引用必须来自该条主张的"
+                           "allowed_evidence_ids；不能引用其他主张、示例编号或原始输入来源。依据仍不足时返回 UNVERIFIED。")
         task = to_json(payload).decode()
         async with asyncio.timeout(remaining(state["deadline_at"])):
             return await runtime.context.llm(prompt, task)
@@ -109,9 +116,39 @@ def build_category_subgraph(spec: CategorySpec):
         if not state["active_claim_ids"]:
             return {}
         try:
-            plans = TypeAdapter(list[spec.plan_type]).validate_json(await call_model(state, runtime, "plan"))
             retry = bool(state["claim_states"])
-            check_ids(plans, state["active_claim_ids"], complete=retry)
+            notes = list(state["notes"])
+            adapter = TypeAdapter(list[spec.plan_type])
+            raw = await call_model(state, runtime, "plan")
+            try:
+                plans = adapter.validate_json(raw)
+            except ValidationError as error:
+                try:
+                    rows = json.loads(raw)
+                except json.JSONDecodeError:
+                    raise error
+                if not isinstance(rows, list) or any(
+                    not isinstance(row, dict) or not isinstance(row.get("claim_id"), str) for row in rows
+                ):
+                    raise error
+                ids = [row["claim_id"] for row in rows]
+                check_ids(ids, state["active_claim_ids"], complete=retry)
+                valid, feedback = {}, {}
+                for row in rows:
+                    try:
+                        valid[row["claim_id"]] = spec.plan_type.model_validate(row)
+                    except ValidationError as cause:
+                        feedback[row["claim_id"]] = {
+                            "rejected_plan": row,
+                            "errors": cause.errors(include_input=False, include_url=False, include_context=False),
+                        }
+                repair_state = state | {"active_claim_ids": list(feedback)}
+                corrected = adapter.validate_json(await call_model(repair_state, runtime, "plan", feedback=feedback))
+                check_ids([item.claim_id for item in corrected], list(feedback), complete=True)
+                valid.update({item.claim_id: item for item in corrected})
+                plans = [valid[claim_id] for claim_id in ids]
+                notes.extend(f"{claim_id}：计划格式纠正成功。" for claim_id in feedback)
+            check_ids([item.claim_id for item in plans], state["active_claim_ids"], complete=retry)
             by_id = {item.claim_id: item for item in plans}
             selected = [claim_id for claim_id in state["active_claim_ids"] if claim_id in by_id]
             claims = dict(state["claim_states"])
@@ -123,7 +160,7 @@ def build_category_subgraph(spec: CategorySpec):
                 else:
                     claims[claim_id] = spec.claim_state_type(plan=item)
             return {"claim_states": claims, "active_claim_ids": selected,
-                    "selected_claim_ids": state["selected_claim_ids"] if retry else selected}
+                    "selected_claim_ids": state["selected_claim_ids"] if retry else selected, "notes": notes}
         except Exception as error:
             return failed(state, "Plan", error)
 
@@ -228,7 +265,7 @@ def build_category_subgraph(spec: CategorySpec):
             if model_ids:
                 results = TypeAdapter(list[spec.validate_type]).validate_json(
                     await call_model(model_state, runtime, "validate"))
-            check_ids(results, model_ids, complete=True)
+            check_ids([item.claim_id for item in results], model_ids, complete=True)
         except Exception as error:
             return failed(model_state, "Validate", error)
 
@@ -239,7 +276,7 @@ def build_category_subgraph(spec: CategorySpec):
             try:
                 corrected = TypeAdapter(list[spec.validate_type]).validate_json(
                     await call_model(repair_state, runtime, "validate", feedback=feedback))
-                check_ids(corrected, list(feedback), complete=True)
+                check_ids([item.claim_id for item in corrected], list(feedback), complete=True)
                 apply_results(corrected)
                 notes.extend(f"{claim_id}：判定引用纠正成功。" for claim_id in feedback
                              if claims[claim_id].assessment is not None and claims[claim_id].error == state["claim_states"][claim_id].error)

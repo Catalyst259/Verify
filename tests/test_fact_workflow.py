@@ -309,17 +309,17 @@ def test_openai_call_uses_config_and_preserves_array_protocol(monkeypatch, finis
     assert "thinking" not in body and len(captured) == 1
 
 
-@pytest.mark.parametrize("invalid", [
-    None,
-    "下面是结果：\n```json\n[]\n```",
-    "```json\n[]\n```\n说明",
-    "```json\n[]",
-    "```python\n[]\n```",
-    "```json\n[}\n```",
-    "```json\n[]\n```\n```json\n[]\n```",
-    "```json\n[{\"claim_id\": \"c0\"}]\n```",
+@pytest.mark.parametrize("invalid,plan_calls", [
+    (None, 1),
+    ("下面是结果：\n```json\n[]\n```", 1),
+    ("```json\n[]\n```\n说明", 1),
+    ("```json\n[]", 1),
+    ("```python\n[]\n```", 1),
+    ("```json\n[}\n```", 1),
+    ("```json\n[]\n```\n```json\n[]\n```", 1),
+    ("```json\n[{\"claim_id\": \"c0\"}]\n```", 2),
 ])
-def test_fenced_model_response_through_plan_and_validate(monkeypatch, invalid):
+def test_fenced_model_response_through_plan_and_validate(monkeypatch, invalid, plan_calls):
     calls, searches = [], []
 
     def respond(request):
@@ -357,4 +357,4 @@ def test_fenced_model_response_through_plan_and_validate(monkeypatch, invalid):
         assert calls == ["plan", "validate"] and searches == ["c0"]
     else:
         assert result.status == "failed" and result.error.startswith(("Plan: ValueError:", "Plan: ValidationError:"))
-        assert calls == ["plan"] and not searches
+        assert calls == ["plan"] * plan_calls and not searches
