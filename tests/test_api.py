@@ -198,7 +198,7 @@ def test_missing_model_configuration_returns_503(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("timeout,status,detail", [
     (True, 504, "提取超时，请减少材料后重试"),
-    (False, 502, "Agent 提取失败，请检查模型配置、浏览器及链接；详情见后端日志"),
+    (False, 502, "模型返回的材料来源与本次提交不一致，来源校验未通过；请重试"),
 ])
 def test_extraction_errors_return_expected_responses(tmp_path, timeout, status, detail):
     async def extract(*args):
@@ -214,6 +214,38 @@ def test_extraction_errors_return_expected_responses(tmp_path, timeout, status, 
 
     assert response.status_code == status
     assert response.json() == {"detail": detail}
+
+
+def test_unsubmitted_source_failure_does_not_expose_reference(tmp_path, caplog):
+    unknown_ref = "https://www.xiaohongshu.com/explore/" + "a" * 24 + "?xsec_token=test-sensitive"
+
+    async def extract(*args):
+        return ClaimExtractionResult(target_place="公园", claims=[{
+            "claim_id": "claim_001", "type": "FACT", "content": "免费开放。",
+            "sources": [{"source_type": "LINK", "source_ref": unknown_ref, "source_text": None}],
+        }])
+
+    with TestClient(main.create_app(tmp_path, extract)) as client:
+        response = client.post("/api/verifications", json={"target_place": "公园", "text": "免费开放。"})
+
+    assert response.status_code == 502
+    assert "本次提交不一致" in response.json()["detail"]
+    assert unknown_ref not in response.text and "test-sensitive" not in caplog.text
+    error = next(record.exc_info[1] for record in caplog.records if record.exc_info)
+    assert all(set(issue) == {"claim_index", "source_index", "source_type", "reason"} for issue in error.issues)
+
+
+def test_generic_agent_failure_keeps_502_response(tmp_path):
+    from backend.common.errors import ExtractionFailed
+
+    async def extract(*args):
+        raise ExtractionFailed("Agent 未完成提取")
+
+    with TestClient(main.create_app(tmp_path, extract)) as client:
+        response = client.post("/api/verifications", json={"target_place": "公园", "text": "免费开放。"})
+
+    assert response.status_code == 502
+    assert response.json() == {"detail": "Agent 提取失败，请检查模型配置、浏览器及链接；详情见后端日志"}
 
 
 @pytest.mark.parametrize("error", [

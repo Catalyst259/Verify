@@ -18,7 +18,8 @@
   "description_text": "string | null",
   "links": ["string"],
   "link_materials": [{"source_ref": "原始链接", "title": "标题", "content": "正文", "image_count": 0}],
-  "images": ["multimodal image"]
+  "images": [{"file_code": "系统提供的精确编码", "mime_type": "图片类型"}],
+  "allowed_source_refs": {"TEXT": [null], "IMAGE": ["系统提供的精确编码"], "LINK": ["原始链接"]}
 }
 ```
 
@@ -29,6 +30,7 @@
 - `links`：用户主动提供的小红书笔记链接，可以有多个；
 - `link_materials`：已通过登录会话读取的对应标题和正文；配图按顺序作为多模态图片提供，均标有原始链接；
 - `images`：用户主动上传的图片，可以有多个，并按照用户提交顺序提供。
+- `allowed_source_refs`：本次实际提交的来源标识。某类为空数组时，不能使用该类来源；图片以相同编码标注在多模态材料旁。
 
 ---
 
@@ -325,9 +327,11 @@ LINK
 - `IMAGE`：来自用户上传的图片；
 - `LINK`：来自用户提供的网页。
 
-对于 IMAGE，应使用系统提供的对应 `file_code` 或图片标识作为 `source_ref`。
+对于 IMAGE，`source_ref` 必须原样使用对应图片的精确 `file_code`，且属于 `allowed_source_refs.IMAGE`。不得使用“图片1”、数组序号、文件名、路径、缩略编码或自行编造标识。
 
-对于 LINK，应使用原始 URL 作为 `source_ref`。
+对于 LINK，`source_ref` 必须原样使用 `allowed_source_refs.LINK` 中对应的原始 URL；不改成跳转后的网址、不删参数、不使用笔记 ID 代替。小红书笔记配图仍使用 LINK 和该笔记的原始 URL。
+
+对于 TEXT，只有 `allowed_source_refs.TEXT` 非空时才可使用，`source_ref` 为 null。已读取笔记的文字属于 LINK，不能当作用户提交的 TEXT。
 
 `source_text` 应尽可能保存支持该 Claim 的原始文字或对图片内容的简短描述。
 

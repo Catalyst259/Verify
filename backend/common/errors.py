@@ -21,6 +21,18 @@ class ExtractionFailed(Exception):
     """Agent 未完成提取，或返回结果不符合结构、来源约束。"""
 
 
+class ExtractionSourceMismatch(ExtractionFailed):
+    """来源不属于本次材料；只记录位置和原因，不记录材料内容或标识。"""
+
+    def __init__(self, issues):
+        self.issues = tuple({
+            "claim_index": issue["claim_index"], "source_index": issue["source_index"],
+            "source_type": issue["source_type"], "reason": issue["reason"],
+        } for issue in issues)
+        text_only = self.issues and all(issue["source_type"] == "TEXT" for issue in self.issues)
+        super().__init__("Agent 引用了未提交的文字材料" if text_only else "Agent 返回了未提交的材料来源")
+
+
 class LinkReadError(Exception):
     """可向用户显示的链接读取错误；detail 不含原始签名链接或浏览器异常。"""
 
