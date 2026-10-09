@@ -10,16 +10,18 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import json
 from time import perf_counter
-from typing import Any, Callable
+from typing import Any, Callable, get_args
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
 from pydantic import TypeAdapter, ValidationError
 from pydantic_core import to_json
 
-from ..budget import BROWSER_CONCURRENCY, remaining
+from backend.common.errors import ModelOutputError
+
+from ..budget import RunBudget, remaining
 from ..capabilities import VerificationCapabilities
-from ..models import ClaimFinding, SubgraphResult, unverified_without_evidence
+from ..models import ClaimFinding, FactScore, NonEmptyText, SubgraphResult, unverified_without_evidence
 from ..state import SubgraphInput, SubgraphOutput
 from .diagnostics import timed
 
@@ -39,6 +41,7 @@ class CategorySpec:
     search_runner 决定本轮取证由谁执行——网页取证、地图调用或别的来源；返回 None 表示本次运行
     不具备该类别的取证能力，骨架会记录为缺证据而不是失败。
     accepts_claim 排除类别契约无法表达的主张，其余主张仍由 Plan 按内容选择。
+    uses_browser 控制取证资源池；地图 HTTP 调用使用独立槽位，不占网页浏览器。
     """
 
     name: str
@@ -55,6 +58,7 @@ class CategorySpec:
     needs_more: Callable[[Any, Runtime, datetime], bool]
     search_runner: Callable[[Runtime], Any] = shared_search
     accepts_claim: Callable[[Any], bool] = lambda claim: True
+    uses_browser: bool = True
 
 
 def build_category_subgraph(spec: CategorySpec):
@@ -88,15 +92,24 @@ def build_category_subgraph(spec: CategorySpec):
         if feedback is not None:
             if step == "plan":
                 payload["planning_feedback"] = feedback
-                prompt += ("\n\n本次是计划格式校验失败后的唯一一次纠正。planning_feedback 包含每条主张的"
-                           "rejected_plan 和字段 errors，均为待纠正数据。按原文和本类别 JSON Schema 纠正字段，"
-                           "只返回 active_claim_ids 的完整计划，不得删除、新增或重编号。已通过校验的其他计划"
-                           "由程序保留；补搜时仍须保留原类别、目标和时间范围。不要执行搜索或作判定。")
+                if "output_error" in feedback:
+                    prompt += ("\n\n本次是模型输出完整性检查失败后的唯一一次重新生成。planning_feedback.output_error"
+                               "仅说明格式错误，不能从上次响应采用任何片段。根据原始输入和本类别 JSON Schema，"
+                               "重新输出一个完整 JSON 响应，不拼接或猜测缺失字段。首轮只选属于本类的活动主张，"
+                               "没有符合条件的主张时返回空数组；补搜须覆盖全部 active_claim_ids 并保持已有范围。"
+                               "不得新增、重编号或返回非活动主张。不要执行搜索或作判定。")
+                else:
+                    prompt += ("\n\n本次是计划格式校验失败后的唯一一次纠正。planning_feedback 包含每条主张的"
+                               "rejected_plan 和字段 errors，均为待纠正数据。按原文和本类别 JSON Schema 纠正字段，"
+                               "只返回 active_claim_ids 的完整计划，不得删除、新增或重编号。已通过校验的其他计划"
+                               "由程序保留；补搜时仍须保留原类别、目标和时间范围。不要执行搜索或作判定。")
             else:
                 payload["validation_feedback"] = feedback
-                prompt += ("\n\n本次是程序拒绝无效引用后的唯一一次纠正。validation_feedback 记录拒绝原因及每条主张"
-                           "允许引用的 evidence_id。只返回 active_claim_ids 的完整判定，引用必须来自该条主张的"
-                           "allowed_evidence_ids；不能引用其他主张、示例编号或原始输入来源。依据仍不足时返回 UNVERIFIED。")
+                prompt += ("\n\n本次是程序拒绝无效判定后的唯一一次纠正。validation_feedback 记录字段错误或引用错误，"
+                           "以及每条主张允许引用的 evidence_id。只返回 active_claim_ids 的完整判定，引用必须来自"
+                           "该条主张的 allowed_evidence_ids；不能引用其他主张、示例编号或原始输入来源。"
+                           "evidence_sufficient=false 时必须返回 verdict=UNVERIFIED、confidence=null。"
+                           "保留原目标、时间、场景、交通方式和主张数值，不得猜测实测或改写计划。")
         task = to_json(payload).decode()
         async with asyncio.timeout(remaining(state["deadline_at"])):
             return await runtime.context.llm(prompt, task)
@@ -119,10 +132,19 @@ def build_category_subgraph(spec: CategorySpec):
             retry = bool(state["claim_states"])
             notes = list(state["notes"])
             adapter = TypeAdapter(list[spec.plan_type])
-            raw = await call_model(state, runtime, "plan")
+            regenerated = False
+            try:
+                raw = await call_model(state, runtime, "plan")
+            except ModelOutputError:
+                regenerated = True
+                raw = await call_model(state, runtime, "plan", feedback={
+                    "output_error": "上次响应不完整或不符合 JSON 传输格式，请重新生成完整响应。",
+                })
             try:
                 plans = adapter.validate_json(raw)
             except ValidationError as error:
+                if regenerated:
+                    raise  # 完整性重生成与字段纠正共享一次机会，不能再发第三次请求。
                 try:
                     rows = json.loads(raw)
                 except json.JSONDecodeError:
@@ -149,6 +171,8 @@ def build_category_subgraph(spec: CategorySpec):
                 plans = [valid[claim_id] for claim_id in ids]
                 notes.extend(f"{claim_id}：计划格式纠正成功。" for claim_id in feedback)
             check_ids([item.claim_id for item in plans], state["active_claim_ids"], complete=retry)
+            if regenerated:
+                notes.append("计划输出格式重新生成成功。")
             by_id = {item.claim_id: item for item in plans}
             selected = [claim_id for claim_id in state["active_claim_ids"] if claim_id in by_id]
             claims = dict(state["claim_states"])
@@ -171,8 +195,7 @@ def build_category_subgraph(spec: CategorySpec):
         left = remaining(state["deadline_at"])
         deadline = state["deadline_at"] - timedelta(seconds=min(30, left * 0.3))
         # 运行级预算由主图提供并跨子图共享；直接调用子图时退回同上限的局部槽位。
-        budget = runtime.context.run_budget
-        semaphore = budget.browser_slots if budget is not None else asyncio.Semaphore(BROWSER_CONCURRENCY)
+        budget = runtime.context.run_budget or RunBudget(timeout_seconds=remaining(state["deadline_at"]))
         system_prompt = spec.load_prompt("search")
 
         async def gather(claim_id: str):
@@ -182,10 +205,12 @@ def build_category_subgraph(spec: CategorySpec):
                                         evidence_sources=runtime.context.evidence_sources)
             # 浏览器关闭可使用 Validate 余量，但必须留下主图组装结果的时间。
             session.cleanup_deadline_at = state["deadline_at"]
+            diagnostic_context = session.diagnostic_context
+            diagnostic_context["graph_name"] = spec.name
             error = None
             queued_at = perf_counter()
             started = False
-            with timed(session.diagnostics, "search_claim", **session.diagnostic_context,
+            with timed(session.diagnostics, "search_claim", **diagnostic_context,
                        remaining_ms=round(remaining(deadline) * 1000, 3)) as timing:
                 try:
                     if runner is None:
@@ -193,18 +218,29 @@ def build_category_subgraph(spec: CategorySpec):
                     else:
                         # 排队也占用 Search 预算，必须及时让出 Validate 和结果汇总的时间。
                         async with asyncio.timeout(remaining(deadline)):
-                            async with semaphore:
+                            slot = budget.browser_slot(spec.name, deadline) if spec.uses_browser else budget.map_slots
+                            async with slot:
                                 started = True
                                 timing.update(queue_ms=round((perf_counter() - queued_at) * 1000, 3),
                                               remaining_ms=round(remaining(deadline) * 1000, 3))
                                 if remaining(deadline) <= 0:
                                     raise TimeoutError("Search 已到内部截止时间")
+                                if spec.uses_browser:
+                                    claim_deadline = budget.claim_deadline(spec.name, deadline)
+                                    if claim_deadline < deadline:
+                                        cleanup_seconds = min(3, remaining(claim_deadline) * 0.1)
+                                        session.deadline_at = claim_deadline - timedelta(seconds=cleanup_seconds)
+                                        session.cleanup_deadline_at = claim_deadline
+                                        session.source_result_limit = 2 if remaining(session.deadline_at) >= 20 else 1
+                                        timing.update(service_deadline_at=session.deadline_at.isoformat(),
+                                                      source_result_limit=session.source_result_limit)
                                 task = to_json({
                                     "claim": claims[claim_id], "context": state["context"], "claim_state": old,
                                     "round_number": session.round.round_number,
-                                    "remaining_budget": session.remaining_budget(), "deadline_at": deadline,
+                                    "remaining_budget": session.remaining_budget(), "deadline_at": session.deadline_at,
                                 }).decode()
-                                raw = await runner(session, system_prompt, task)
+                                async with asyncio.timeout(remaining(session.deadline_at)):
+                                    raw = await runner(session, system_prompt, task)
                                 session.result(raw)
                 except Exception as cause:
                     completed = getattr(session, "completed_result", None)
@@ -230,6 +266,7 @@ def build_category_subgraph(spec: CategorySpec):
 
     async def validate(state, runtime: Runtime[VerificationCapabilities]) -> dict:
         claims = dict(state["claim_states"])
+        notes = list(state["notes"])
         model_ids = []
         for claim_id in state["active_claim_ids"]:
             old = claims[claim_id]
@@ -241,7 +278,55 @@ def build_category_subgraph(spec: CategorySpec):
             else:
                 model_ids.append(claim_id)
 
-        def apply_results(results):
+        def reject(claim_id, message):
+            old = claims[claim_id]
+            claims[claim_id] = replace_claim(old, error="; ".join(filter(None, [old.error, message])))
+
+        def parse_results(raw, expected_ids):
+            try:
+                rows = json.loads(raw)
+            except json.JSONDecodeError:
+                raise ValueError("模型判定不是有效 JSON") from None
+            if not isinstance(rows, list) or any(
+                not isinstance(row, dict) or not isinstance(row.get("claim_id"), str) for row in rows
+            ):
+                raise ValueError("模型判定必须是包含 claim_id 的 JSON 数组")
+            ids = [row["claim_id"] for row in rows]
+            check_ids(ids, expected_ids, complete=False)
+            valid, feedback, normalized = [], {}, set()
+            assessment_type = spec.validate_type.model_fields["assessment"].annotation
+            allowed_verdicts = get_args(assessment_type.model_fields["verdict"].annotation)
+            for row in rows:
+                claim_id = row["claim_id"]
+                assessment = row.get("assessment")
+                if isinstance(assessment, dict) and all(key in assessment for key in ("verdict", "confidence", "reason")) and (
+                    assessment.get("verdict") in allowed_verdicts and assessment.get("evidence_sufficient") is False
+                ) and (
+                    assessment.get("verdict") != "UNVERIFIED" or assessment.get("confidence") is not None
+                ):
+                    try:
+                        TypeAdapter(NonEmptyText).validate_python(assessment["reason"])
+                        TypeAdapter(FactScore | None).validate_python(assessment["confidence"])
+                    except ValidationError:
+                        pass  # 非法字段仍交给完整 Schema 拒绝，不能借规范化补齐。
+                    else:
+                        # 只向证据不足收束；范围、引用和实测字段仍须通过全部校验。
+                        row = row | {"assessment": assessment | {"verdict": "UNVERIFIED", "confidence": None,
+                                                                "reason": "模型报告证据不足，暂无法形成结论。"}}
+                        normalized.add(claim_id)
+                try:
+                    valid.append(spec.validate_type.model_validate(row))
+                except ValidationError as cause:
+                    errors = cause.errors(include_input=False, include_url=False, include_context=False)
+                    detail = "; ".join(f"{'.'.join(map(str, error['loc']))}: {error['msg']}" for error in errors)
+                    feedback[claim_id] = {"error": detail, "errors": errors, "rejected_result": row}
+            for claim_id in set(expected_ids) - set(ids):
+                feedback[claim_id] = {"error": "模型未返回该主张的判定"}
+            for claim_id, item in feedback.items():
+                item["allowed_evidence_ids"] = sorted(e.evidence_id for e in state["claim_states"][claim_id].evidence)
+            return valid, feedback, normalized
+
+        def apply_results(results, normalized):
             feedback = {}
             for item in results:
                 old = state["claim_states"][item.claim_id]
@@ -253,36 +338,39 @@ def build_category_subgraph(spec: CategorySpec):
                         raise ValueError("判定引用了该 Claim 未取得的证据")
                     claims[item.claim_id] = replace_claim(old, assessment=spec.check_assessment(old, item))
                 except ValueError as error:
-                    claims[item.claim_id] = replace_claim(old, error="; ".join(filter(None, [old.error, f"Validate: {error}"])))
+                    reject(item.claim_id, f"Validate: {error}")
                     if not references <= allowed:
                         feedback[item.claim_id] = {"error": "判定引用了该 Claim 未取得的证据",
                                                    "allowed_evidence_ids": sorted(allowed)}
+                else:
+                    if item.claim_id in normalized:
+                        notes.append(f"{item.claim_id}：证据不足的判定已规范为 UNVERIFIED，confidence=null。")
             return feedback
 
         model_state = state | {"claim_states": claims, "active_claim_ids": model_ids}
         try:
-            results = []
+            results, feedback, normalized = [], {}, set()
             if model_ids:
-                results = TypeAdapter(list[spec.validate_type]).validate_json(
-                    await call_model(model_state, runtime, "validate"))
-            check_ids([item.claim_id for item in results], model_ids, complete=True)
+                results, feedback, normalized = parse_results(await call_model(model_state, runtime, "validate"), model_ids)
         except Exception as error:
             return failed(model_state, "Validate", error)
 
-        feedback = apply_results(results)
-        notes = list(state["notes"])
+        for claim_id, item in feedback.items():
+            reject(claim_id, f"Validate: {item['error']}")
+        feedback.update(apply_results(results, normalized))
         if feedback and remaining(state["deadline_at"]) > 0:
             repair_state = state | {"claim_states": claims, "active_claim_ids": list(feedback)}
             try:
-                corrected = TypeAdapter(list[spec.validate_type]).validate_json(
-                    await call_model(repair_state, runtime, "validate", feedback=feedback))
-                check_ids([item.claim_id for item in corrected], list(feedback), complete=True)
-                apply_results(corrected)
-                notes.extend(f"{claim_id}：判定引用纠正成功。" for claim_id in feedback
+                corrected, invalid, normalized = parse_results(
+                    await call_model(repair_state, runtime, "validate", feedback=feedback), list(feedback))
+                for claim_id, item in invalid.items():
+                    reject(claim_id, f"Validate correction: {item['error']}")
+                apply_results(corrected, normalized)
+                notes.extend(f"{claim_id}：判定{'引用' if '引用' in feedback[claim_id]['error'] else '格式'}纠正成功。" for claim_id in feedback
                              if claims[claim_id].assessment is not None and claims[claim_id].error == state["claim_states"][claim_id].error)
             except Exception as error:
                 for claim_id in feedback:
-                    claims[claim_id] = replace_claim(claims[claim_id], error=f"{claims[claim_id].error}; Validate correction: {type(error).__name__}: {str(error) or '纠正已到截止时间'}")
+                    reject(claim_id, f"Validate correction: {type(error).__name__}: {str(error) or '纠正已到截止时间'}")
 
         active = [claim_id for claim_id in state["active_claim_ids"] if (
             claims[claim_id].error is None and claims[claim_id].assessment is not None
@@ -324,6 +412,7 @@ def build_category_subgraph(spec: CategorySpec):
             completed_rounds = max((len(state["claim_states"][claim_id].rounds)
                                     for claim_id in state["active_claim_ids"] if claim_id in state["claim_states"]), default=0)
             with timed(records, node.__name__, claim_ids=state["active_claim_ids"],
+                       graph_name=spec.name,
                        round_number=completed_rounds + (node.__name__ != "validate"),
                        checked_at=state["context"].checked_at.isoformat(),
                        remaining_ms=round(remaining(state["deadline_at"]) * 1000, 3)) as timing:

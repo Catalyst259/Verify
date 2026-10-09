@@ -170,10 +170,8 @@ class ValhallaRouting:
         return cached
 
     async def _call(self, path: str, payload: dict) -> dict:
-        delay = self._next_request_at - time.monotonic()
-        if delay > 0:
+        while (delay := self._next_request_at - time.monotonic()) > 0:
             await asyncio.sleep(delay)
-        self._next_request_at = time.monotonic() + self.min_request_interval_seconds
         client = self._client
         temporary = client is None
         if temporary:
@@ -189,6 +187,7 @@ class ValhallaRouting:
         except httpx.HTTPError as error:
             raise ValhallaError(f"Valhalla 请求失败（{type(error).__name__}）") from None
         finally:
+            self._next_request_at = time.monotonic() + self.min_request_interval_seconds
             if temporary:
                 await client.aclose()
         if response.status_code >= 400:

@@ -9,6 +9,10 @@ class ModelNotConfigured(Exception):
     """模型缺少必要配置，异常消息为可向用户展示的配置提示。"""
 
 
+class ModelOutputError(ValueError):
+    """供应商响应不完整或不符合 JSON 传输格式；消息不包含原始模型输出。"""
+
+
 class ExtractionTimeout(Exception):
     """主张提取未在限定时间内完成。"""
 

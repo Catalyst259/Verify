@@ -304,12 +304,12 @@ def test_slow_source_returns_partial_material_before_search_deadline(monkeypatch
 
     async def exercise():
         current = session(evidence_sources={"xiaohongshu": SlowSource()})
-        current.deadline_at = datetime.now(timezone.utc) + timedelta(seconds=11)
+        current.deadline_at = datetime.now(timezone.utc) + timedelta(seconds=1)
         tools = create_tools(current, object())
         result = await asyncio.wait_for(action(tools, "search_web", query="停车场"), timeout=2)
         assert len(result["crawler_evidence"]) == 1
         assert "TimeoutError" in result["crawler_error"]
-        assert not result["deadline_reached"] and result["remaining_budget"]["time_seconds"] > 8
+        assert not result["deadline_reached"] and result["remaining_budget"]["time_seconds"] > 0.1
         finished = await tools.registry.execute_action("done", {})
         assert finished.is_done and finished.success
         assert len(SearchResult.model_validate_json(finished.extracted_content).evidence) == 1

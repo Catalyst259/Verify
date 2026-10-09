@@ -1,6 +1,7 @@
 import asyncio
 import json
 import time
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -132,6 +133,32 @@ def test_distinct_requests_are_spaced_one_per_second_window():
 
     asyncio.run(both())
     assert stamps[1] - stamps[0] >= 0.05
+
+
+def test_early_scheduler_wakeup_rechecks_request_deadline(monkeypatch):
+    clock, sleeps, stamps = [0.0], [], []
+    monkeypatch.setattr(valhalla, "time", SimpleNamespace(monotonic=lambda: clock[0]))
+
+    async def early_sleep(delay):
+        sleeps.append(delay)
+        clock[0] += min(delay, 0.02)
+
+    def capture(request):
+        stamps.append(clock[0])
+        clock[0] += 0.03
+        return respond(request)
+
+    monkeypatch.setattr(valhalla.asyncio, "sleep", early_sleep)
+    source = ValhallaRouting("https://routing.test", user_agent="Verify/0.1", min_request_interval_seconds=0.05,
+                             client=httpx.AsyncClient(transport=httpx.MockTransport(capture)))
+
+    async def both():
+        await source.route(ORIGIN, STATION, "pedestrian")
+        await source.route(STATION, ORIGIN, "pedestrian")
+
+    asyncio.run(both())
+    assert len(sleeps) >= 6 and stamps[0] >= 0.05
+    assert stamps[1] - stamps[0] >= 0.08
 
 
 def test_request_carries_the_application_user_agent_to_the_configured_service(monkeypatch):

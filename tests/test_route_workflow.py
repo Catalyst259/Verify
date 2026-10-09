@@ -177,6 +177,79 @@ def test_route_without_claimed_time_never_invents_a_measurement_plan(text):
     assert result.status == "skipped" and not result.selected_claim_ids and not result.findings
 
 
-@pytest.mark.parametrize("text", ["步行5分钟", "步行约 1.5 小时", "步行半小时", "步行半个小时", "大约两三分钟", "walking 5 minutes"])
+@pytest.mark.parametrize("text", ["步行5分钟", "步行约 1.5 小时", "步行半小时", "步行半个小时", "从地铁到公园大约两三分钟", "walking 5 minutes"])
 def test_numeric_and_chinese_duration_claims_remain_eligible(text):
     assert has_claimed_duration(inputs(text)["claims"][0])
+
+
+@pytest.mark.parametrize("text", [
+    "手划船票价150元/人，限乘1小时。",
+    "摇橹船180元/小时，每次租用1小时起。",
+    "游船票价55元/人，游玩1小时。",
+    "从码头乘船，1小时150元。",
+    "步行沿湖租船，每1小时收费150元。",
+    "周末排队二十分钟。",
+    "步行入口排队20分钟。",
+    "从地铁站出来后排队5分钟。",
+    "公园开放12小时。",
+    "从9点到17点营业8小时。",
+    "在公园步行游玩2小时。",
+    "建议沿湖散步游览1小时。",
+    "大约两三分钟。",
+    "沿湖走5公里，船票价格150元/小时。",
+])
+def test_non_journey_duration_never_starts_route_planning(text):
+    async def unexpected(*args):
+        pytest.fail("计费、营业、排队和游玩时长不能作为路线通行耗时")
+
+    result = asyncio.run(build_route_subgraph().ainvoke(inputs(text), context=VerificationCapabilities(
+        llm=unexpected, map_routing=FakeRouting(), subgraph_timeout_seconds=10)))['result']
+    assert result.status == "skipped"
+    assert not result.selected_claim_ids and not result.findings
+
+
+@pytest.mark.parametrize("text", [
+    "从断桥到苏堤大约20分钟。",
+    "断桥 → 白堤步行5分钟。",
+    "地铁站至公园需10分钟。",
+    "走到公园要5分钟，门票50元/人。",
+    "步行5分钟到码头，手划船150元/小时。",
+    "排队20分钟；从地铁站步行到公园只需5分钟。",
+    "公园开放8小时。步行到公园5分钟。",
+    "门票50元/人；from station to park takes 5 minutes.",
+    "A 5 minute walk from the station to the park.",
+    "从地铁站步行5分钟到开放的公园。",
+    "骑车10分钟至免费开放的西湖景区。",
+    "步行5分钟即可到达开放的码头。",
+    "从开放的公园步行5分钟到酒店。",
+    "排队20分钟后步行5分钟到公园。",
+])
+def test_journey_time_is_selected_by_content_even_if_claim_type_is_fact(text):
+    claim = inputs(text)['claims'][0].model_copy(update={"type": "FACT"})
+    assert has_claimed_duration(claim)
+
+
+def test_mixed_price_and_journey_claims_only_request_actual_route_plans():
+    price = "摇橹船180元/小时，每次租用1小时起。"
+    journey = "从地铁站步行到公园5分钟，门票50元/人。"
+    state = inputs(journey)
+    state['claims'][0] = state['claims'][0].model_copy(update={"type": "FACT"})
+    state['claims'].append(Claim(claim_id="c1", type="ROUTE", content=price,
+                                 sources=[{"source_type": "TEXT", "source_ref": None,
+                                           "source_text": price}]))
+    plan = make_plan("c0")
+    requested = []
+
+    async def model(prompt, task):
+        payload = json.loads(task)
+        requested.append(payload['active_claim_ids'])
+        if prompt.startswith("# Route Plan"):
+            return json.dumps([plan.model_dump(mode="json")])
+        return json.dumps([{"claim_id": "c0", "assessment": assessment(plan, "MATCHED", 360.0)}])
+
+    result = asyncio.run(build_route_subgraph().ainvoke(state, context=VerificationCapabilities(
+        llm=model, map_routing=FakeRouting(duration=360.0), place_resolver=resolve_ok(),
+        subgraph_timeout_seconds=10)))['result']
+    assert result.status == "completed" and result.selected_claim_ids == ['c0']
+    assert requested == [['c0'], ['c0']]
+    assert result.findings[0].assessment.verdict == "MATCHED"

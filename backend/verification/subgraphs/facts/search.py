@@ -27,7 +27,8 @@ class SearchSession:
     """单条 Claim 一轮的真实取证记录；超时或 Agent 输出损坏也不丢失材料。"""
 
     def __init__(self, claim: FactClaimState, deadline_at: datetime, *, checked_at: datetime | None = None,
-                 input_urls: tuple[str, ...] = (), evidence_sources: Mapping[str, EvidenceSource] | None = None):
+                 input_urls: tuple[str, ...] = (), evidence_sources: Mapping[str, EvidenceSource] | None = None,
+                 source_result_limit: int | None = None):
         self.claim_id = claim.plan.claim_id
         self.deadline_at = deadline_at
         # 编排骨架提供收尾截止时间；直接调用时仍使用原有三秒清理上限。
@@ -41,6 +42,7 @@ class SearchSession:
                                    "checked_at": checked_at.isoformat() if checked_at else None}
         self.seen = {(item.url, item.content) for item in claim.evidence}
         self.evidence_sources = evidence_sources or {}
+        self.source_result_limit = source_result_limit
         self.input_note_ids = frozenset(identity for url in input_urls
                                         if (identity := canonical_note_id(url)) is not None)
 
@@ -50,6 +52,7 @@ class SearchSession:
             "queries": MAX_QUERIES - self.round.queries,
             "evidence": MAX_EVIDENCE_PER_ROUND - len(self.evidence),
             "max_results_per_query": MAX_RESULTS_PER_QUERY,
+            "max_source_results_per_query": self.source_result_limit or MAX_RESULTS_PER_QUERY,
             "time_seconds": round(remaining(self.deadline_at), 3),
         }
 
@@ -242,7 +245,10 @@ def create_tools(session: SearchSession, browser):
 
     @tools.action("结束本轮取证；参数必须为空对象，由代码返回本轮实际登记的材料和错误。", param_model=FinishSearchParams)
     async def done(params: FinishSearchParams):
-        return ActionResult(is_done=True, success=True, extracted_content=session.result().model_dump_json())
+        raw = session.result().model_dump_json()
+        if datetime.now(timezone.utc) < session.deadline_at:
+            session.completed_result = raw
+        return ActionResult(is_done=True, success=True, extracted_content=raw)
 
     @tools.action("搜索网页候选（最多 10 个），需 read_page 读取正文；已配置的小红书并行读取 WEB 正文证据。")
     async def search_web(query: str):
@@ -268,7 +274,10 @@ def create_tools(session: SearchSession, browser):
 
             async def crawler_execute(operation, *, query=False, **kwargs):
                 budget = session.remaining_budget()
-                if not query and (budget["tool_calls"] <= 1 or budget["evidence"] <= 1):
+                source_count = sum(canonical_note_id(item.url) is not None
+                                   for item in session.evidence[first_evidence:])
+                source_full = session.source_result_limit is not None and source_count >= session.source_result_limit
+                if not query and (source_full or budget["tool_calls"] <= 1 or budget["evidence"] <= 1):
                     return {"stopped": True,
                             "deadline_reached": datetime.now(timezone.utc) >= session.deadline_at,
                             "remaining_budget": budget}
@@ -278,7 +287,7 @@ def create_tools(session: SearchSession, browser):
                 try:
                     # 来源取消后的有界清理、Agent 下一次决策及结束动作也需要时间。
                     # 不把整段 Search 余量交给一次批量来源读取。
-                    source_deadline = session.deadline_at - timedelta(seconds=min(10, remaining(session.deadline_at)))
+                    source_deadline = session.deadline_at - timedelta(seconds=min(10, remaining(session.deadline_at) * .25))
                     with timed(session.diagnostics, "xiaohongshu_query", **session.diagnostic_context,
                                remaining_ms=round(remaining(source_deadline) * 1000, 3)):
                         await source.search(query, execute=crawler_execute, excluded_ids=session.input_note_ids,
@@ -375,6 +384,9 @@ async def run_search(session: SearchSession, system_prompt: str, task: str) -> s
 
     original_cancel = None
     try:
+        system_prompt += ("\nremaining_budget.max_source_results_per_query 是本次来源批量新增正文上限；"
+                          "积压时会减少该上限。remaining_budget.time_seconds 是当前服务切片的剩余时间，"
+                          "本批已有相关正文时优先 done，不能为读完整批次耗尽结束时间。")
         agent = Agent(
             task=task, llm=llm, browser=browser, tools=create_tools(session, browser),
             extend_system_message=system_prompt,
@@ -383,9 +395,11 @@ async def run_search(session: SearchSession, system_prompt: str, task: str) -> s
             max_failures=2, final_response_after_failure=False, register_should_stop_callback=should_stop,
         )
         history = await agent.run(max_steps=min(config["max_steps"], MAX_TOOL_CALLS + 1))
-        if datetime.now(timezone.utc) >= session.deadline_at:
+        if session.completed_result is not None:
+            raw = session.completed_result
+        elif datetime.now(timezone.utc) >= session.deadline_at:
             raise TimeoutError("Search 已到内部截止时间")
-        if history.is_successful():
+        elif history.is_successful():
             raw = str(history.final_result())
         elif session.exhausted():
             raw = session.result().model_dump_json()

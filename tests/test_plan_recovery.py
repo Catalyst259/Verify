@@ -5,6 +5,7 @@ import json
 
 import pytest
 
+from backend.common.errors import ModelOutputError
 from backend.verification.capabilities import VerificationCapabilities
 from backend.extraction.models import Claim
 from backend.verification.subgraphs import skeleton
@@ -220,3 +221,113 @@ def test_transport_failures_are_not_schema_corrections(error):
 
     result = run(model, unexpected_search)
     assert result.status == "failed" and calls == [1] and str(error) in result.error
+
+
+@pytest.mark.parametrize("selected", [[], ["c1"]])
+def test_complete_regeneration_keeps_initial_category_selection_and_does_not_expose_bad_output(selected):
+    calls = []
+
+    async def model(prompt, task):
+        state = json.loads(task)
+        calls.append(state)
+        if len(calls) == 1:
+            raise ModelOutputError("untrusted fragment https://example.test/?xsec_token=secret")
+        assert set(state["planning_feedback"]) == {"output_error"}
+        assert "xsec_token" not in task and "untrusted fragment" not in task
+        return json.dumps([make_plan(cid) for cid in selected])
+
+    result = run(model, count=3)
+    assert len(calls) == 2 and calls[0]["deadline_at"] == calls[1]["deadline_at"]
+    assert result.selected_claim_ids == selected and result.status == ("completed" if selected else "skipped")
+
+
+@pytest.mark.parametrize("second", [
+    "format", "schema", "unknown", "duplicate", "transport",
+])
+def test_complete_regeneration_and_schema_correction_share_one_retry(second):
+    calls = []
+
+    async def model(prompt, task):
+        calls.append(json.loads(task))
+        if len(calls) == 1 or second == "format":
+            raise ModelOutputError("模型未返回完整的有效 JSON")
+        if second == "transport":
+            raise TimeoutError("连接超时")
+        rows = [make_plan("c0")]
+        if second == "schema":
+            rows[0]["fact_type"] = "FACT"
+        elif second == "unknown":
+            rows[0]["claim_id"] = "unknown"
+        elif second == "duplicate":
+            rows *= 2
+        return json.dumps(rows)
+
+    result = run(model, unexpected_search)
+    assert result.status == "failed" and len(calls) == 2 and result.error.startswith("Plan:")
+
+
+def test_schema_correction_does_not_gain_another_retry_when_its_output_is_incomplete():
+    calls = []
+
+    async def model(prompt, task):
+        calls.append(json.loads(task))
+        if len(calls) == 1:
+            return json.dumps([make_plan("c0") | {"fact_type": "FACT"}])
+        raise ModelOutputError("模型未返回完整的有效 JSON")
+
+    result = run(model, unexpected_search)
+    assert result.status == "failed" and len(calls) == 2
+
+
+def test_complete_regeneration_timeout_uses_original_deadline_and_cancels_call():
+    calls, cancelled = [], []
+
+    async def model(prompt, task):
+        calls.append(json.loads(task))
+        if len(calls) == 1:
+            raise ModelOutputError("模型未返回完整的有效 JSON")
+        try:
+            await asyncio.sleep(10)
+        finally:
+            cancelled.append(True)
+
+    result = run(model, unexpected_search, timeout=.3)
+    assert result.status == "failed" and "TimeoutError" in result.error
+    assert len(calls) == 2 and cancelled == [True]
+    assert calls[0]["deadline_at"] == calls[1]["deadline_at"]
+
+
+@pytest.mark.parametrize("change", [None, "missing", "target"])
+def test_complete_regeneration_of_replan_preserves_existing_scope_and_material(change):
+    calls, searches = [], []
+
+    async def model(prompt, task):
+        state = json.loads(task)
+        if prompt.startswith("# Fact Plan"):
+            calls.append(state)
+            if len(calls) == 2:
+                raise ModelOutputError("模型未返回完整的有效 JSON")
+            if len(calls) == 3 and change == "missing":
+                return "[]"
+            plan = make_plan("c0")
+            if len(calls) == 3 and change == "target":
+                plan["target"] = "其他地点"
+            return json.dumps([plan])
+        old = state["claim_states"]["c0"]
+        return json.dumps([{"claim_id": "c0", "assessment": assessment(old, sufficient=len(old["rounds"]) == 2)}])
+
+    async def search(session, *args):
+        searches.append(session.round.round_number)
+        await read(session, f"第 {session.round.round_number} 轮材料")
+        return session.result().model_dump_json()
+
+    result = run(model, search)
+    finding = result.findings[0]
+    assert len(calls) == 3 and len({state["deadline_at"] for state in calls}) == 1
+    assert finding.evidence[0].content == "第 1 轮材料"
+    if change:
+        assert result.status == "partial" and searches == [1]
+        assert finding.assessment.verdict == "UNVERIFIED" and finding.error
+    else:
+        assert result.status == "completed" and searches == [1, 2]
+        assert finding.assessment.verdict == "SUPPORTED" and finding.error is None

@@ -12,6 +12,7 @@ from collections.abc import Mapping
 import logging
 import math
 from time import monotonic
+import unicodedata
 
 import httpx
 
@@ -24,11 +25,60 @@ logger = logging.getLogger(__name__)
 _MISSING = object()
 
 
+def _identity_text(value: str) -> str:
+    text = "".join(char for char in unicodedata.normalize("NFKC", value).casefold() if char.isalnum())
+    for suffix in ("地铁站", "地鐵站"):
+        if text.endswith(suffix):
+            return text.removesuffix(suffix)
+    return text
+
+
+def _matches_identity(query: str, row: Mapping) -> bool:
+    """实体名须完整一致；查询附带的行政限定只能由候选地址确认。"""
+    names = [row.get("name")]
+    details = row.get("namedetails")
+    if isinstance(details, Mapping):
+        names.extend(value for key, value in details.items() if isinstance(key, str) and key.split(":", 1)[0] in {
+            "name", "alt_name", "short_name", "loc_name", "int_name", "official_name", "old_name",
+        })
+    if not any(isinstance(name, str) and name.strip() for name in names):
+        display = row.get("display_name")
+        if isinstance(display, str):
+            names.append(display.split(",", 1)[0])
+    entities = {_identity_text(alias) for name in names if isinstance(name, str)
+                for alias in name.split(";") if alias.strip()}
+    target = _identity_text(query)
+    address = row.get("address")
+    admins = set()
+    if isinstance(address, Mapping):
+        for key in ("country", "state", "province", "region", "county", "city", "town", "village",
+                    "municipality", "district", "borough", "suburb"):
+            value = address.get(key)
+            if isinstance(value, str) and value.strip():
+                name = _identity_text(value)
+                admins.add(name)
+                for suffix in ("特别行政区", "自治区", "省", "市", "区", "县"):
+                    if name.endswith(suffix):
+                        admins.add(name.removesuffix(suffix))
+    for entity in entities:
+        if not entity:
+            continue
+        if target == entity:
+            return True
+        if target.endswith(entity):
+            scope = target[:-len(entity)]
+            for admin in sorted(filter(None, admins), key=len, reverse=True):
+                scope = scope.replace(admin, "")
+            if not scope:
+                return True
+    return False
+
+
 class NominatimPlaceResolver:
     """Resolve one place string per call, reusing results inside the process.
 
-    Only the first result the service ranks is used; this build resolves a single
-    POI and does not pick among same-named candidates. ``min_interval_seconds``
+    The first identity-matching result is used; cross-region namesakes without an
+    explicit query scope remain ambiguous. ``min_interval_seconds``
     exists for tests; production keeps it at the policy floor of one second.
     """
 
@@ -82,7 +132,8 @@ class NominatimPlaceResolver:
         await self._wait_for_slot()
         try:
             response = await self._http().get(f"{self.base_url}/search",
-                                              params={"q": query, "format": "jsonv2", "accept-language": "zh-CN"},
+                                              params={"q": query, "format": "jsonv2", "accept-language": "zh-CN",
+                                                      "namedetails": 1, "addressdetails": 1},
                                               headers={"User-Agent": self.user_agent, "Referer": self.referer})
             response.raise_for_status()
             rows = response.json()
@@ -105,10 +156,12 @@ class NominatimPlaceResolver:
 
     @staticmethod
     def _first_poi(query: str, rows: object) -> PlaceReference | None:
-        """Take the service's top result; skip rows without usable coordinates."""
+        """Take a matching entity with usable coordinates; unrelated ranked hits are unknown."""
         if not isinstance(rows, list):
             return None
         for row in rows:
+            if not isinstance(row, Mapping) or not _matches_identity(query, row):
+                continue
             try:
                 latitude, longitude = float(row["lat"]), float(row["lon"])
             except (KeyError, TypeError, ValueError):
