@@ -245,7 +245,8 @@ def test_one_or_two_claims_keep_the_original_stage_deadline(count):
     asyncio.run(exercise())
 
 
-def test_backlog_gives_later_claims_time_when_first_two_searches_stall():
+def test_backlog_gives_later_claims_time_when_first_two_searches_stall(monkeypatch):
+    monkeypatch.setattr("backend.verification.budget.MAX_CLAIM_SEARCH_SECONDS", 0.04)
     async def exercise():
         budget = RunBudget(timeout_seconds=1.2)
         stage = datetime.now(timezone.utc) + timedelta(seconds=0.8)
@@ -274,6 +275,31 @@ def test_backlog_gives_later_claims_time_when_first_two_searches_stall():
         await assert_idle(budget)
 
     asyncio.run(exercise())
+
+
+def test_large_backlog_keeps_a_useful_window_including_the_last_waiters():
+    async def exercise():
+        budget = RunBudget(timeout_seconds=240)
+        windows = []
+        async def claim():
+            async with budget.browser_slot("fact", budget.deadline_at):
+                windows.append(remaining(budget.claim_deadline("fact", budget.deadline_at)))
+                await asyncio.sleep(0)
+        await asyncio.gather(*(claim() for _ in range(22)))
+        assert budget.browser_contended and len(windows) == 22
+        assert all(29 < window <= 30 for window in windows)
+        await assert_idle(budget)
+    asyncio.run(exercise())
+
+
+def test_optional_retry_requires_time_for_the_whole_wave_and_original_deadline():
+    budget = RunBudget(timeout_seconds=240)
+    budget.browser_contended = True
+    assert not budget.can_retry_browser(22, budget.deadline_at)
+    assert budget.can_retry_browser(2, budget.deadline_at)
+    short = datetime.now(timezone.utc) + timedelta(seconds=50)
+    assert not budget.can_retry_browser(2, short)
+    assert RunBudget(timeout_seconds=50).can_retry_browser(22, short)
 
 
 def test_claim_service_slice_is_capped_at_thirty_seconds_when_backlogged():

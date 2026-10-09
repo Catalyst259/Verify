@@ -107,7 +107,7 @@ def test_link_errors_fail_whole_submission_with_index(tmp_path, status):
 
 
 def test_link_read_and_extraction_share_deadline(tmp_path, monkeypatch):
-    monkeypatch.setattr(service_module, 'RunBudget', lambda: RunBudget(timeout_seconds=0.12))
+    monkeypatch.setattr(service_module, 'RunBudget', lambda **kwargs: RunBudget(timeout_seconds=0.12, **kwargs))
 
     class Slow(NoteReader):
         async def read_note(self, *args, **kwargs):
@@ -125,7 +125,7 @@ def test_link_read_and_extraction_share_deadline(tmp_path, monkeypatch):
 
 
 def test_expired_read_has_no_extra_model_call(tmp_path, monkeypatch):
-    monkeypatch.setattr(service_module, 'RunBudget', lambda: RunBudget(timeout_seconds=0.01))
+    monkeypatch.setattr(service_module, 'RunBudget', lambda **kwargs: RunBudget(timeout_seconds=0.01, **kwargs))
 
     class Slow(NoteReader):
         async def read_note(self, *args, **kwargs):

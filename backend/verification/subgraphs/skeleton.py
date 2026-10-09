@@ -19,7 +19,7 @@ from pydantic_core import to_json
 
 from backend.common.errors import ModelOutputError
 
-from ..budget import RunBudget, remaining
+from ..budget import BROWSER_CONCURRENCY, RunBudget, remaining
 from ..capabilities import VerificationCapabilities
 from ..models import ClaimFinding, FactScore, NonEmptyText, SubgraphResult, unverified_without_evidence
 from ..state import SubgraphInput, SubgraphOutput
@@ -89,6 +89,18 @@ def build_category_subgraph(spec: CategorySpec):
         schema = spec.plan_task if step == "plan" else spec.validate_task
         payload = {key: state[key] for key in schema.__annotations__}
         prompt = spec.load_prompt(step)
+        if step == "validate":
+            allowed = {claim_id: sorted(e.evidence_id for e in state["claim_states"][claim_id].evidence)
+                       for claim_id in state["active_claim_ids"]}
+            prompt += ("\n\n引用字段必须逐字复制本条主张实际取得的 evidence_id，不得使用来源名称、网址、"
+                       "索引、示例编号或其他主张的 ID。清单只说明允许引用，不说明材料足以支持结论。"
+                       "\n本次活动主张可引用的 evidence_id 清单（按 claim_id）：\n"
+                       + json.dumps(allowed, ensure_ascii=False))
+            prompt += ("\nsupporting_evidence、counter_evidence、context_evidence 均为 ID 数组；"
+                       "每个元素遵守下列本轮 JSON Schema（按 claim_id），空清单只允许空数组。"
+                       "不能把证据正文、说明或来源拼到 ID 后面。\n"
+                       + json.dumps({cid: {"type": "array", "items": {"enum": ids} if ids else False}
+                                     for cid, ids in allowed.items()}, ensure_ascii=False))
         if feedback is not None:
             if step == "plan":
                 payload["planning_feedback"] = feedback
@@ -195,7 +207,12 @@ def build_category_subgraph(spec: CategorySpec):
         left = remaining(state["deadline_at"])
         deadline = state["deadline_at"] - timedelta(seconds=min(30, left * 0.3))
         # 运行级预算由主图提供并跨子图共享；直接调用子图时退回同上限的局部槽位。
-        budget = runtime.context.run_budget or RunBudget(timeout_seconds=remaining(state["deadline_at"]))
+        budget = runtime.context.run_budget or RunBudget(
+            timeout_seconds=remaining(state["deadline_at"]),
+            concurrency=1 if runtime.context.evidence_sources.get("xiaohongshu") is not None else BROWSER_CONCURRENCY,
+        )
+        if spec.uses_browser:
+            budget.prepare_browser_batch(len(state["claims"]))
         system_prompt = spec.load_prompt("search")
 
         async def gather(claim_id: str):
@@ -227,11 +244,15 @@ def build_category_subgraph(spec: CategorySpec):
                                     raise TimeoutError("Search 已到内部截止时间")
                                 if spec.uses_browser:
                                     claim_deadline = budget.claim_deadline(spec.name, deadline)
-                                    if claim_deadline < deadline:
+                                    if runtime.context.run_budget is not None:
+                                        # 首份正文后由 Validate 决定补搜，小批次也不能预读十篇占满运行。
+                                        session.source_result_limit = 1
+                                        timing.update(source_result_limit=1)
+                                    if budget.browser_contended:
                                         cleanup_seconds = min(3, remaining(claim_deadline) * 0.1)
                                         session.deadline_at = claim_deadline - timedelta(seconds=cleanup_seconds)
                                         session.cleanup_deadline_at = claim_deadline
-                                        session.source_result_limit = 2 if remaining(session.deadline_at) >= 20 else 1
+                                        session.source_result_limit = 1
                                         timing.update(service_deadline_at=session.deadline_at.isoformat(),
                                                       source_result_limit=session.source_result_limit)
                                 task = to_json({
@@ -339,9 +360,12 @@ def build_category_subgraph(spec: CategorySpec):
                     claims[item.claim_id] = replace_claim(old, assessment=spec.check_assessment(old, item))
                 except ValueError as error:
                     reject(item.claim_id, f"Validate: {error}")
-                    if not references <= allowed:
-                        feedback[item.claim_id] = {"error": "判定引用了该 Claim 未取得的证据",
-                                                   "allowed_evidence_ids": sorted(allowed)}
+                    feedback[item.claim_id] = {
+                        "error": str(error),
+                        "errors": [{"type": "value_error", "loc": ["assessment"], "msg": str(error)}],
+                        "rejected_result": item.model_dump(mode="json"),
+                        "allowed_evidence_ids": sorted(allowed),
+                    }
                 else:
                     if item.claim_id in normalized:
                         notes.append(f"{item.claim_id}：证据不足的判定已规范为 UNVERIFIED，confidence=null。")
@@ -352,6 +376,11 @@ def build_category_subgraph(spec: CategorySpec):
             results, feedback, normalized = [], {}, set()
             if model_ids:
                 results, feedback, normalized = parse_results(await call_model(model_state, runtime, "validate"), model_ids)
+        except ModelOutputError:
+            # 完整响应重生成复用唯一纠正机会，不采用被拒响应的任何片段。
+            feedback = {cid: {"error": "模型响应不完整或不是有效 JSON，请按原材料重新生成完整判定，不采用上次响应片段。",
+                              "allowed_evidence_ids": sorted(e.evidence_id for e in state["claim_states"][cid].evidence)}
+                        for cid in model_ids}
         except Exception as error:
             return failed(model_state, "Validate", error)
 
@@ -376,6 +405,10 @@ def build_category_subgraph(spec: CategorySpec):
             claims[claim_id].error is None and claims[claim_id].assessment is not None
             and spec.needs_more(claims[claim_id], runtime, state["deadline_at"])
         )]
+        budget = runtime.context.run_budget
+        if active and spec.uses_browser and budget is not None and not budget.can_retry_browser(len(active), state["deadline_at"]):
+            notes.append("共享取证时间不足以完成下一轮补搜，保留本轮判定、已读材料和未解决问题。")
+            active = []
         return {"claim_states": claims, "active_claim_ids": active, "notes": notes}
 
     def finalize(state) -> SubgraphOutput:

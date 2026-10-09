@@ -35,6 +35,12 @@ class RunBudget:
         self._browser_dispatcher: asyncio.Task | None = None
         self._browser_inflight = 0
         self._last_browser_category: str | None = None
+        self.browser_contended = False
+
+    def prepare_browser_batch(self, claim_count: int):
+        """模型选中前按完整批次预判积压，避免先完成 Plan 的类别独占浏览器。"""
+        if claim_count > self.browser_concurrency:
+            self.browser_contended = True
 
     def _pending_browser_count(self) -> int:
         return sum(not waiter.done() for queue in self._browser_queues.values() for waiter in queue)
@@ -95,6 +101,8 @@ class RunBudget:
             self._browser_queues[category] = deque()
             self._browser_categories.append(category)
         self._browser_queues[category].append(waiter)
+        if self._pending_browser_count() + self._browser_inflight > self.browser_concurrency:
+            self.browser_contended = True
         if self._browser_dispatcher is None:
             self._browser_dispatcher = asyncio.create_task(self._dispatch_browser())
         try:
@@ -117,10 +125,17 @@ class RunBudget:
             await self._stop_idle_dispatcher()
 
     def claim_deadline(self, category: str, stage_deadline: datetime) -> datetime:
-        """积压时给当前主张有界切片，让后续主张共享同一段 Search 余量。"""
+        """积压运行保留可完成一次读取的切片；绝对截止时间始终优先。"""
         deadline = min(stage_deadline, self.deadline_at)
-        unfinished = self._pending_browser_count() + self._browser_inflight
-        if unfinished <= self.browser_concurrency:
+        if not self.browser_contended:
             return deadline
-        seconds = min(MAX_CLAIM_SEARCH_SECONDS, remaining(deadline) * self.browser_concurrency / unfinished)
-        return min(deadline, datetime.now(timezone.utc) + timedelta(seconds=seconds))
+        # 按排队数平分余量会把导航、读取和模型结束切碎成不足十秒的重复失败。
+        return min(deadline, datetime.now(timezone.utc) + timedelta(seconds=MAX_CLAIM_SEARCH_SECONDS))
+
+    def can_retry_browser(self, claim_count: int, stage_deadline: datetime) -> bool:
+        """只有可容纳下一整轮服务及模型收尾时才开启可选补搜。"""
+        if not self.browser_contended:
+            return True
+        demand = self._pending_browser_count() + self._browser_inflight + claim_count
+        waves = (demand + self.browser_concurrency - 1) // self.browser_concurrency
+        return remaining(min(stage_deadline, self.deadline_at)) >= waves * MAX_CLAIM_SEARCH_SECONDS + 30

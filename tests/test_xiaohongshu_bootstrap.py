@@ -123,7 +123,8 @@ def test_cancellation_during_home_bootstrap_propagates_and_releases_profile(cold
         with pytest.raises(asyncio.CancelledError):
             await task
         assert calls == [True] and ledger == []
-        assert context.closed and drivers[0].stopped and source._context is None
+        assert not context.closed and not drivers[0].stopped and source._context is context
+        assert all(page.closed for page in context.pages)
         assert not source._lock.locked()
         assert not any("xiaohongshu_navigation_failed" in record.getMessage() for record in caplog.records)
         await source.aclose()

@@ -3,6 +3,7 @@
 import asyncio
 import json
 import pytest
+import httpx
 from datetime import datetime, timezone
 
 from backend.extraction.models import Claim
@@ -11,6 +12,7 @@ from backend.verification.models import PlaceReference, VerificationContext
 from backend.verification.subgraphs.route import build_route_subgraph
 from backend.verification.subgraphs.route.model import RoutePlan
 from backend.verification.subgraphs.route.graph import has_claimed_duration
+from backend.sources.nominatim import NominatimPlaceResolver
 
 CHECKED = datetime(2026, 10, 7, 9, 0, 0, tzinfo=timezone.utc)
 EVIDENCE_ID = "c0-r1-0"  # 测量会话生成的首个实测证据标识
@@ -253,3 +255,72 @@ def test_mixed_price_and_journey_claims_only_request_actual_route_plans():
     assert result.status == "completed" and result.selected_claim_ids == ['c0']
     assert requested == [['c0'], ['c0']]
     assert result.findings[0].assessment.verdict == "MATCHED"
+
+
+@pytest.mark.parametrize("intercity", [False, True])
+def test_map_routing_uses_confirmed_geography_and_preserves_explicit_intercity_endpoints(intercity):
+    hangzhou = {"name": "杭州市", "category": "boundary", "addresstype": "city",
+                "address": {"city": "杭州市", "country_code": "cn"}}
+    shanghai = hangzhou | {"name": "上海市", "address": {"city": "上海市", "country_code": "cn"}}
+    wrong = {"name": "杭州西湖", "lat": "22.7271967", "lon": "120.3230086",
+             "address": {"city": "高雄市", "country_code": "tw"}}
+    bridge = {"name": "断桥", "lat": "30.2609009", "lon": "120.1470304",
+              "address": {"city": "杭州市", "country_code": "cn"}}
+    dike = {"name": "白堤", "lat": "30.2589716", "lon": "120.1453238",
+            "address": {"city": "杭州市", "country_code": "cn"}}
+    station = {"name": "虹桥站", "lat": "31.2", "lon": "121.3",
+               "address": {"city": "上海市", "country_code": "cn"}}
+    rows = {"杭州": [hangzhou], "上海": [shanghai], "杭州西湖": [wrong], "断桥": [bridge],
+            "白堤": [dike], "上海虹桥站": [station]}
+    resolver = NominatimPlaceResolver(base_url="https://geo.test", min_interval_seconds=0.001,
+                                      transport=httpx.MockTransport(lambda req: httpx.Response(200, json=rows.get(req.url.params["q"], []))))
+    calls = []
+
+    class RecordingRouting(FakeRouting):
+        async def route(self, origin, destination, costing):
+            calls.append((origin, destination, costing))
+            return await super().route(origin, destination, costing)
+
+    state = inputs("从断桥到白堤步行5分钟。")
+    state["context"] = state["context"].model_copy(update={"target_place": "杭州西湖"})
+    plan = make_plan("c0").model_copy(update={"origin_text": "断桥",
+                                            "destination_text": "上海虹桥站" if intercity else "白堤"})
+    distance = 200000.0 if intercity else 269.0
+
+    async def exercise():
+        try:
+            return (await build_route_subgraph().ainvoke(state, context=VerificationCapabilities(
+                llm=model_returning(plan, "MATCHED", 360.0), place_resolver=resolver,
+                map_routing=RecordingRouting(duration=360.0, distance=distance), subgraph_timeout_seconds=10)))["result"]
+        finally:
+            await resolver.aclose()
+
+    result = asyncio.run(exercise())
+    assert result.status == "completed"
+    assert calls == [(Coordinates(30.2609009, 120.1470304),
+                      Coordinates(31.2, 121.3) if intercity else Coordinates(30.2589716, 120.1453238), "pedestrian")]
+    assert result.findings[0].evidence[0].distance_meters == distance
+
+
+def test_unconfirmed_route_geography_is_unverified_without_calling_routing():
+    bridge = {"name": "断桥", "lat": "31.0", "lon": "119.0", "address": {"city": "南京市"}}
+    resolver = NominatimPlaceResolver(base_url="https://geo.test", min_interval_seconds=0.001,
+                                      transport=httpx.MockTransport(lambda req: httpx.Response(200, json=[bridge])))
+
+    class NeverRouting(FakeRouting):
+        async def route(self, *args):
+            pytest.fail("未确认目标地域时不能采用异地同名坐标")
+
+    plan = make_plan("c0").model_copy(update={"origin_text": "断桥", "destination_text": "断桥"})
+
+    async def exercise():
+        try:
+            return (await build_route_subgraph().ainvoke(inputs(), context=VerificationCapabilities(
+                llm=model_returning(plan, "UNVERIFIED", None, cited=None), place_resolver=resolver,
+                map_routing=NeverRouting(), subgraph_timeout_seconds=10)))["result"]
+        finally:
+            await resolver.aclose()
+
+    result = asyncio.run(exercise())
+    assert result.status == "completed" and not result.findings[0].evidence
+    assert result.findings[0].assessment.verdict == "UNVERIFIED"

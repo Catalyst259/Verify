@@ -38,8 +38,8 @@ async def fact_model(prompt, task):
 def test_image_request_keeps_evidence_and_completed_claim_before_shared_timeout(tmp_path, monkeypatch, frontend):
     budgets, deadlines, cancelled = [], [], []
 
-    def budget():
-        result = RunBudget(timeout_seconds=0.8)
+    def budget(**kwargs):
+        result = RunBudget(timeout_seconds=0.8, **kwargs)
         budgets.append(result)
         return result
 

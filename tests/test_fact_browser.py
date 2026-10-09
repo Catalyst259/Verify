@@ -19,6 +19,8 @@ pytestmark = pytest.mark.skipif(os.getenv("VERIFY_BROWSER_TESTS") != "1", reason
 
 
 @pytest.mark.parametrize("model,mode", [("gpt-4.1", "valid"), ("deepseek-flash", "valid"),
+                                      ("gpt-4.1", "initial_action"), ("deepseek-flash", "initial_action"),
+                                      ("gpt-4.1", "first_pass"),
                                       ("deepseek-flash", "malformed"),
                                       ("deepseek-flash", "missing_action_once"),
                                       ("deepseek-flash", "missing_action_always")])
@@ -113,6 +115,8 @@ def test_fact_search_reads_real_page_with_bounded_tools(monkeypatch, model, mode
 
     async def tracked_search(session, prompt, task):
         sessions.append(session)
+        if mode in {"first_pass", "initial_action"}:
+            session.source_result_limit = 1
         return await search.run_search(session, prompt, task)
 
     monkeypatch.setattr(search, "page_data", local_search)
@@ -124,25 +128,30 @@ def test_fact_search_reads_real_page_with_bounded_tools(monkeypatch, model, mode
                   "timeout_seconds": 60, "max_steps": 6}
         monkeypatch.setattr(llm, "load_config", lambda: config)
         monkeypatch.setattr(search, "load_config", lambda: config)
+        from test_xiaohongshu_api import OnlineSource
+        sources = {"xiaohongshu": OnlineSource(per_query=1)} if mode == "initial_action" else {}
         result = asyncio.run(build_fact_subgraph().ainvoke(inputs(), context=VerificationCapabilities(
-            search=tracked_search, subgraph_timeout_seconds=90,
+            search=tracked_search, subgraph_timeout_seconds=90, evidence_sources=sources,
         )))["result"]
 
     failed = mode in {"malformed", "missing_action_always"}
     assert result.status == ("partial" if failed else "completed"), result.model_dump_json()
-    assert len(calls) == (5 if mode == "valid" else 6) and len(queries) == 1
-    assert len(finish_attempts) == (1 if mode == "valid" else 2)
+    assert len(calls) == (2 if mode == "initial_action" else 4 if mode == "first_pass" else 5 if mode == "valid" else 6)
+    assert len(queries) == (0 if mode == "initial_action" else 1)
+    assert len(finish_attempts) == (0 if mode in {"first_pass", "initial_action"} else 1 if mode == "valid" else 2)
     assert len(missing_action_responses) == {"missing_action_once": 1, "missing_action_always": 2}.get(mode, 0)
-    expected_controls = (2 if failed else 3) if model == "deepseek-flash" else 0
+    expected_controls = (2 if failed else 3) if model == "deepseek-flash" and mode != "initial_action" else 0
     assert len(literal_control_responses) == expected_controls
-    assert visits == ["search", "notice"]
-    assert sessions[0].round.tool_calls == 2 and sessions[0].round.results_per_query == [10]
+    assert visits == ([] if mode == "initial_action" else ["search", "notice"])
+    assert sessions[0].round.tool_calls == 2
+    assert sessions[0].round.results_per_query == ([1] if mode == "initial_action" else [10])
     assert sessions[0].round.queries == 1 and sessions[0].round.new_evidence_count == 1
     finding = result.findings[0]
     assert finding.assessment.verdict == "SUPPORTED" and bool(finding.error) == failed
     assert len(finding.evidence) == 1
-    assert finding.evidence[0].content == "停车场开放说明\n\n停车场对游客开放，夜间关闭。"
-    assert finding.evidence[0].model_dump(mode="json")["published_at"] == "2026-10-05"
+    assert finding.evidence[0].content == (f"停车场体验 {1:024x}" if mode == "initial_action"
+                                           else "停车场开放说明\n\n停车场对游客开放，夜间关闭。")
+    assert finding.evidence[0].model_dump(mode="json")["published_at"] == (None if mode == "initial_action" else "2026-10-05")
     assert finding.assessment.supporting_evidence == [finding.evidence[0].evidence_id]
     assert all(browser.session_manager is None for browser in browsers)
 

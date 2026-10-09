@@ -7,7 +7,7 @@ from backend.common.errors import LinkReadError
 from backend.extraction.service import ClaimExtractionService
 from backend.storage.repository import StorageRepository
 
-from .budget import RunBudget, remaining
+from .budget import BROWSER_CONCURRENCY, RunBudget, remaining
 from .capabilities import VerificationCapabilities
 from .graph import build_verification_graph
 from .models import VerificationInput, VerificationRun
@@ -31,7 +31,10 @@ class VerificationService:
         # 来源可复用本次运行已读取的正文；缓存不能随应用级来源跨请求沿用。
         sources = {name: source.for_run() if callable(getattr(source, "for_run", None)) else source
                    for name, source in self.capabilities.evidence_sources.items()}
-        capabilities = replace(self.capabilities, input_urls=tuple(request.link), run_budget=RunBudget(),
+        # 小红书资料锁只有一个许可，不能先放行两条 Claim 消耗彼此的服务窗口。
+        concurrency = 1 if sources.get("xiaohongshu") is not None else BROWSER_CONCURRENCY
+        capabilities = replace(self.capabilities, input_urls=tuple(request.link),
+                               run_budget=RunBudget(concurrency=concurrency),
                                evidence_sources=sources)
         materials = []
         for index, url in enumerate(request.link, 1):

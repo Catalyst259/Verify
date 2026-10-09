@@ -53,24 +53,26 @@ def test_source_limit_bounds_new_bodies_and_preserves_idle_default(tmp_path, mon
 
 
 @pytest.mark.parametrize("seconds", [.4, 8, 40])
-def test_source_gets_positive_fractional_budget_even_below_ten_seconds(monkeypatch, web, seconds):
+@pytest.mark.parametrize("limit", [None, 1])
+def test_source_deadline_reserves_model_time_only_without_a_body_quota(monkeypatch, web, seconds, limit):
     class Source:
         async def search(self, query, *, deadline_at, **kwargs):
             now = datetime.now(timezone.utc)
             source_window = (deadline_at - now).total_seconds()
             session_window = (current.deadline_at - now).total_seconds()
-            assert 0 < source_window < session_window
-            assert source_window == pytest.approx(session_window - min(10, session_window * .25), abs=.02)
+            assert 0 < source_window <= session_window
+            reserved = min(10, session_window * .25) if limit is None else 0
+            assert source_window == pytest.approx(session_window - reserved, abs=.02)
             self.deadline_at = deadline_at
 
     async def exercise():
         nonlocal current
         source = Source()
-        current = session(source, seconds=seconds, limit=2)
+        current = session(source, seconds=seconds, limit=limit)
         original_deadline = current.deadline_at
         await query(current)
         assert current.deadline_at == original_deadline
-        assert source.deadline_at < current.deadline_at
+        assert (source.deadline_at < current.deadline_at) if limit is None else source.deadline_at == current.deadline_at
     current = None
     asyncio.run(exercise())
 
@@ -107,7 +109,7 @@ def test_duplicate_bodies_do_not_consume_the_next_query_new_evidence_limit(tmp_p
     asyncio.run(exercise())
 
 
-def test_source_timeout_keeps_material_and_real_error_before_done(monkeypatch, web):
+def test_source_timeout_keeps_material_but_does_not_mark_a_late_pass_completed(monkeypatch, web):
     class Source:
         async def search(self, query, *, execute, deadline_at, **kwargs):
             async def value(data):
@@ -121,12 +123,39 @@ def test_source_timeout_keeps_material_and_real_error_before_done(monkeypatch, w
     async def exercise():
         current = session(Source(), limit=2, seconds=.4)
         result = await query(current)
-        assert not result["deadline_reached"] and len(result["crawler_evidence"]) == 1
+        assert len(result["crawler_evidence"]) == 1
         assert "TimeoutError" in result["crawler_error"]
+        current.deadline_at = datetime.now(timezone.utc) - timedelta(seconds=.01)
         done = await search.create_tools(current, object()).registry.execute_action("done", {})
         final = SearchResult.model_validate_json(done.extracted_content)
         assert len(final.evidence) == 1 and "TimeoutError" in final.error
-        assert current.completed_result == done.extracted_content
+        assert current.completed_result is None
+    asyncio.run(exercise())
+
+
+def test_body_quota_uses_remaining_source_time_without_resetting_deadline(monkeypatch, web):
+    class Source:
+        async def search(self, query, *, execute, deadline_at, **kwargs):
+            assert deadline_at == current.deadline_at
+            async with asyncio.timeout((deadline_at - datetime.now(timezone.utc)).total_seconds()):
+                await asyncio.sleep(.32)
+
+                async def body():
+                    return {"source": "小红书公开作者", "source_type": "WEB", "content": "公开笔记正文。",
+                            "url": "https://www.xiaohongshu.com/explore/000000000000000000000002"}
+
+                await execute(body)
+
+    async def exercise():
+        nonlocal current
+        current = session(Source(), limit=1, seconds=.4)
+        original_deadline = current.deadline_at
+        result = await query(current)
+        assert len(result["crawler_evidence"]) == 1 and result["crawler_error"] is None
+        assert current.first_pass_complete() and current.deadline_at == original_deadline
+        assert not result["deadline_reached"]
+
+    current = None
     asyncio.run(exercise())
 
 

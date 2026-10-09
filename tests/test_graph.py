@@ -1,13 +1,17 @@
 """通过真实 LangGraph 验证主图编排，提取与证据来源使用测试替身。"""
 
 import asyncio
+from datetime import datetime, timezone
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
 import pytest
+import httpx
 
 from backend.extraction.models import Claim, ClaimExtractionResult
+from backend.sources.nominatim import NominatimPlaceResolver
 from backend.storage.repository import StorageRepository
+from backend.verification.budget import RunBudget
 from backend.verification.capabilities import VerificationCapabilities
 from backend.verification.models import (
     ClaimFinding, Evidence, FactAssessment, FactDimensions, PlaceReference, SubgraphResult, VerificationInput,
@@ -39,6 +43,144 @@ def extracted():
             {"source_type": "TEXT", "source_ref": None, "source_text": "周末游客少"},
         ]},
     ])
+
+
+@pytest.mark.parametrize("sources, expected", [({}, 2), ({"xiaohongshu": None}, 2), ({"xiaohongshu": object()}, 1)])
+def test_service_admission_matches_single_xhs_profile(tmp_path, sources, expected):
+    async def extract(*args):
+        return extracted()
+
+    async def check(state, runtime: Runtime[VerificationCapabilities]):
+        budget = runtime.context.run_budget
+        assert budget.browser_concurrency == expected
+        assert budget.map_slots._value == 2
+        assert budget.timeout_seconds == 240
+        return {"result": SubgraphResult(graph_name="fact", status="skipped")}
+
+    verification = service(tmp_path, extract, subgraphs={"fact": subgraph("fact", check)},
+                           capabilities=VerificationCapabilities(evidence_sources=sources))
+    asyncio.run(verification.run(VerificationInput(target_place="公园", text="免费开放")))
+
+
+def test_service_xhs_admission_is_shared_across_categories_and_fresh_per_request(tmp_path):
+    async def exercise():
+        active, peak = 0, 0
+        budgets = []
+
+        async def extract(*args):
+            return extracted()
+
+        def handler(name):
+            async def check(state, runtime):
+                nonlocal active, peak
+                budget = runtime.context.run_budget
+                budgets.append(budget)
+                async with budget.browser_slot(name, budget.deadline_at):
+                    active += 1
+                    peak = max(peak, active)
+                    try:
+                        await asyncio.sleep(.02)
+                    finally:
+                        active -= 1
+                return {"result": SubgraphResult(graph_name=name, status="skipped")}
+            return check
+
+        verification = service(tmp_path, extract,
+            subgraphs={name: subgraph(name, handler(name)) for name in ("fact", "experience")},
+            capabilities=VerificationCapabilities(evidence_sources={"xiaohongshu": object()}))
+        for _ in range(2):
+            await verification.run(VerificationInput(target_place="公园", text="免费开放"))
+        assert peak == 1 and active == 0
+        assert budgets[0] is budgets[1] and budgets[2] is budgets[3] and budgets[0] is not budgets[2]
+        assert all(budget._browser_inflight == budget._pending_browser_count() == 0 for budget in budgets)
+
+    asyncio.run(exercise())
+
+
+def test_context_geocoder_queue_uses_original_run_deadline(tmp_path):
+    async def exercise():
+        async def extract(*args):
+            return extracted()
+
+        async def forbidden_branch(state):
+            pytest.fail("A branch must not run after the original budget expires")
+
+        resolver = NominatimPlaceResolver(transport=httpx.MockTransport(
+            lambda request: pytest.fail("The held geocoder gate must prevent HTTP traffic")))
+        verification = service(tmp_path, extract, subgraphs={
+            "fact": subgraph("fact", forbidden_branch),
+        })
+        budget = RunBudget(timeout_seconds=.5)
+        deadline = budget.deadline_at
+        capabilities = VerificationCapabilities(place_resolver=resolver, run_budget=budget)
+        async with resolver._gate:
+            output = await asyncio.wait_for(verification.graph.ainvoke({
+                "request": VerificationInput(target_place="公园", text="免费开放"),
+            }, context=capabilities), timeout=1)
+        run = output["result"]
+        assert run.status == "failed" and len(run.claims) == 2
+        assert run.context.resolved_place is None
+        assert "运行预算" in run.subgraph_results["fact"].error
+        assert budget.deadline_at == deadline and resolver._client is None
+        assert not resolver._gate.locked()
+        await resolver.aclose()
+
+    asyncio.run(exercise())
+
+
+def test_context_does_not_hide_resolver_timeout_before_run_deadline(tmp_path):
+    async def extract(*args):
+        return extracted()
+
+    async def resolver(target):
+        raise TimeoutError("resolver's own failure")
+
+    async def exercise():
+        verification = service(tmp_path, extract, subgraphs={})
+        with pytest.raises(TimeoutError, match="resolver's own failure"):
+            await verification.graph.ainvoke({
+                "request": VerificationInput(target_place="公园", text="免费开放"),
+            }, context=VerificationCapabilities(place_resolver=resolver, run_budget=RunBudget()))
+
+    asyncio.run(exercise())
+
+
+@pytest.mark.parametrize("count, contended", [(2, False), (22, True)])
+def test_first_branch_observes_whole_batch_demand_before_late_branches_plan(tmp_path, count, contended):
+    async def exercise():
+        first_started = asyncio.Event()
+        observations = []
+
+        async def extract(*args):
+            prototype = extracted().claims[0]
+            return ClaimExtractionResult(target_place="公园", claims=[
+                prototype.model_copy(update={"claim_id": f"c{index}"}) for index in range(count)
+            ])
+
+        async def early(state, runtime: Runtime[VerificationCapabilities]):
+            budget = runtime.context.run_budget
+            original_deadline = budget.deadline_at
+            async with budget.browser_slot("early", original_deadline):
+                observations.append(budget.browser_contended)
+                seconds = (budget.claim_deadline("early", original_deadline)
+                           - datetime.now(timezone.utc)).total_seconds()
+                assert (29 < seconds <= 30) if contended else seconds > 200
+                first_started.set()
+                assert budget.deadline_at == original_deadline
+            return {"result": SubgraphResult(graph_name="early", status="completed")}
+
+        async def late(state, runtime):
+            await first_started.wait()
+            return {"result": SubgraphResult(graph_name="late", status="completed")}
+
+        verification = service(tmp_path, extract, subgraphs={
+            "early": subgraph("early", early), "late": subgraph("late", late),
+        })
+        run = await verification.run(VerificationInput(target_place="公园", text="免费开放"))
+        assert run.status == "completed" and len(run.claims) == count
+        assert observations == [contended]
+
+    asyncio.run(exercise())
 
 
 def test_entire_batch_reaches_parallel_subgraphs_and_joins_once(tmp_path):

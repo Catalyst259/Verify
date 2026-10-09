@@ -17,7 +17,7 @@ from pathlib import Path
 import re
 import sys
 from time import perf_counter
-from urllib.parse import parse_qs, urlencode, urljoin, urlsplit
+from urllib.parse import parse_qs, unquote, urljoin, urlsplit
 from uuid import uuid4
 import warnings
 
@@ -85,6 +85,12 @@ GUARD_JS = r"""() => {
 EMPTY_JS = r"""() => Array.from(document.querySelectorAll('.no-result, .no-results, .empty-container, .empty')).some(e =>
     e.getClientRects().length > 0 && /暂无.*笔记|没有.*结果|没有.*笔记|未找到/.test(e.innerText))"""
 
+HOME_READY_JS = r"""() => {
+    const visible = e => !!e && e.getClientRects().length > 0 && getComputedStyle(e).visibility !== 'hidden';
+    return visible(document.querySelector('#search-input')) || visible(document.querySelector('#search-input-in-feeds')) ||
+        Array.from(document.querySelectorAll('.note-item')).some(visible);
+}"""
+
 
 class XiaohongshuError(RuntimeError):
     """A controlled source failure; previously registered evidence remains usable."""
@@ -138,6 +144,7 @@ class XiaohongshuSource:
         self.timeout_seconds = timeout_seconds
         self.executable_path = executable_path or None
         self.pacing_seconds = pacing_seconds
+        self._last_detail_navigation = perf_counter()
         self._lock = asyncio.Lock()
         self._playwright = None
         self._context = None
@@ -201,6 +208,10 @@ class XiaohongshuSource:
     async def _goto(self, page, url: str):
         from playwright.async_api import TimeoutError as NavigationTimeout
 
+        note_navigation = valid_note_url(url)
+        if note_navigation:
+            while (delay := self._last_detail_navigation + self.pacing_seconds - perf_counter()) > 0:
+                await asyncio.sleep(delay)
         started = perf_counter()
         try:
             response = await page.goto(url, wait_until="domcontentloaded", timeout=25000)
@@ -223,6 +234,11 @@ class XiaohongshuSource:
                 raise XiaohongshuTimeout("小红书网页导航超时：25秒内未完成 DOM 加载") from None
             detail = code or type(error).__name__
             raise XiaohongshuError(f"小红书网页导航失败（{detail}）") from None
+        finally:
+            if note_navigation:
+                # Include redirects and failed/cancelled attempts conservatively;
+                # waiting cancellation above has not issued a navigation.
+                self._last_detail_navigation = perf_counter()
         if response is not None and response.status in (401, 403, 429):
             raise XiaohongshuAccessRestricted(f"小红书网页限制访问（HTTP {response.status}）")
         if response is not None and response.status >= 400:
@@ -237,6 +253,10 @@ class XiaohongshuSource:
             raise XiaohongshuError("小红书可见页面结构读取失败") from None
 
     async def _guard(self, page):
+        parts = urlsplit(page.url)
+        if (parts.scheme == "https" and parts.hostname in {"xiaohongshu.com", "www.xiaohongshu.com"}
+                and parts.path.rstrip("/") == "/website-login/captcha"):
+            raise XiaohongshuAccessRestricted("小红书进入验证码验证页；后台采集已停止，请单独检查登录浏览器")
         reason = await self._evaluate(page, GUARD_JS)
         if reason == "login":
             raise XiaohongshuLoginRequired("小红书需要重新登录；请单独运行 python -m backend.sources.xiaohongshu --login")
@@ -247,17 +267,100 @@ class XiaohongshuSource:
     def _is_search(page, query: str) -> bool:
         try:
             parts = urlsplit(page.url)
+            keywords = parse_qs(parts.query, keep_blank_values=True).get("keyword", [])
+            path = parts.path.rstrip("/")
             return (parts.scheme == "https" and parts.hostname in {"xiaohongshu.com", "www.xiaohongshu.com"}
-                    and parts.path.rstrip("/") == "/search_result" and parse_qs(parts.query).get("keyword") == [query])
+                    and ((path == "/search_result" and keywords == [query]) or
+                         (path == "/search_result_ai" and len(keywords) == 1 and unquote(keywords[0]) == query)))
         except ValueError:
             return False
 
-    async def _candidates(self, page, query: str, excluded: frozenset[str], private: dict) -> list[dict]:
-        # Initialize the logged-in site before opening its search route. A cold
-        # search tab can hang before DOM readiness even when the profile is valid.
+    @staticmethod
+    def _identity_metadata(page, query: str) -> dict:
+        """Export only route categories and keyword equality, never raw signed links or terms."""
+        try:
+            parts = urlsplit(page.url)
+            keywords = parse_qs(parts.query, keep_blank_values=True).get("keyword", [])
+            path = parts.path.rstrip("/")
+            kind = "search" if path in {"/search_result", "/search_result_ai"} else "home" if path == "/explore" else (
+                "note" if canonical_note_id(page.url) else "other")
+            return {"scheme_https": parts.scheme == "https",
+                    "host_allowed": parts.hostname in {"xiaohongshu.com", "www.xiaohongshu.com"},
+                    "path_kind": kind, "keyword_present": bool(keywords), "keyword_exact": keywords == [query],
+                    "keyword_single_decode_exact": len(keywords) == 1 and unquote(keywords[0]) == query,
+                    "keyword_whitespace_equal": len(keywords) == 1 and " ".join(keywords[0].split()) == " ".join(query.split())}
+        except ValueError:
+            return {"scheme_https": False, "host_allowed": False, "path_kind": "invalid",
+                    "keyword_present": False, "keyword_exact": False, "keyword_single_decode_exact": False,
+                    "keyword_whitespace_equal": False}
+
+    async def _wait_ready(self, page, query: str, *, home: bool = False):
+        # DOMContentLoaded precedes SPA initialization; home cards indicate readiness only,
+        # and are never read as requested-keyword candidates.
+        for _ in range(20):
+            await self._guard(page)
+            identity = self._identity_metadata(page, query)
+            if not identity["scheme_https"] or not identity["host_allowed"]:
+                break
+            ready = (identity["path_kind"] == "home" and await self._evaluate(page, HOME_READY_JS)) if home else self._is_search(page, query)
+            if ready:
+                return
+            await asyncio.sleep(.25)
+        logger.warning("xiaohongshu_identity_failed %s", json.dumps({
+            "phase": "home_ready" if home else "search_ready", **self._identity_metadata(page, query),
+        }))
+        if home:
+            raise XiaohongshuError("小红书首页搜索控件未就绪，未继续读取候选")
+        raise XiaohongshuError("未进入对应关键词的小红书搜索页；等待页面就绪后仍未匹配")
+
+    async def _enter_search(self, page, query: str):
+        """Use the site's visible search controls; direct search URLs can trigger its gate."""
+        from playwright.async_api import TimeoutError as ActionTimeout
+
+        def require_home():
+            identity = self._identity_metadata(page, query)
+            if not identity["scheme_https"] or not identity["host_allowed"] or identity["path_kind"] != "home":
+                raise XiaohongshuError("小红书搜索输入页已切换，未继续提交关键词")
+
+        try:
+            await self._guard(page)
+            require_home()
+            search_input = page.locator("#search-input").first
+            if not await search_input.is_visible():
+                search_input = page.locator("#search-input-in-feeds").first
+                if not await search_input.is_visible():
+                    raise XiaohongshuError("小红书搜索输入框未显示，未尝试填写隐藏控件")
+                # Focusing the current feed control mounts a second textarea; follow
+                # only the actual visible focused editor inside the observed wrapper.
+                await search_input.click(timeout=5000)
+                await self._guard(page)
+                require_home()
+                search_input = page.locator("textarea:focus")
+                if (await search_input.count() != 1 or not await search_input.is_visible() or
+                        not await search_input.evaluate("e => e.tagName === 'TEXTAREA' && !!e.closest('.wendian-wrapper')")):
+                    raise XiaohongshuError("小红书活动搜索编辑框未就绪，未尝试填写其他控件")
+            await self._guard(page)
+            require_home()
+            await search_input.fill(query, timeout=5000)
+            await self._guard(page)
+            require_home()
+            await search_input.press("Enter", timeout=5000)
+        except (asyncio.CancelledError, XiaohongshuError):
+            raise
+        except (ActionTimeout, TimeoutError):
+            raise XiaohongshuTimeout("小红书可见搜索控件操作超时，未读取候选") from None
+        except Exception:
+            # Playwright action exceptions can contain submitted text or signed URLs.
+            raise XiaohongshuError("小红书可见搜索控件操作失败，未读取候选") from None
+
+    async def _candidates(self, page, query: str, excluded: frozenset[str], private: dict,
+                          limit: int | None = None) -> list[dict]:
+        # Initialize the logged-in site, then let its native search events create
+        # the requested route. Home recommendations never become query materials.
         await self._goto(page, HOME)
-        await self._guard(page)
-        await self._goto(page, "https://www.xiaohongshu.com/search_result?" + urlencode({"keyword": query}))
+        await self._wait_ready(page, query, home=True)
+        await self._enter_search(page, query)
+        await self._wait_ready(page, query)
         for _ in range(20):
             await self._guard(page)
             if not self._is_search(page, query):
@@ -283,7 +386,7 @@ class XiaohongshuSource:
                 private[identity] = card
                 results[identity] = {"note_id": identity, "title": card.get("title", ""),
                                      "url": f"https://www.xiaohongshu.com/explore/{identity}"}
-                if len(results) >= self.max_results:
+                if len(results) >= (limit or self.max_results):
                     return list(results.values())
             idle_rounds = idle_rounds + 1 if len(results) == before else 0
             if idle_rounds >= 2:
@@ -294,7 +397,6 @@ class XiaohongshuSource:
         return list(results.values())
 
     async def _read(self, page, identity: str, card: dict) -> dict:
-        await asyncio.sleep(self.pacing_seconds)
         await self._goto(page, card["url"])
         previous = None
         for _ in range(16):
@@ -453,7 +555,6 @@ class XiaohongshuSource:
                         await page.route('**/*', restrict_navigation)
                         await self._goto(page, HOME)
                         await self._guard(page)
-                        await asyncio.sleep(self.pacing_seconds)
                         await self._goto(page, url)
                         previous = None
                         identity = None
@@ -539,7 +640,8 @@ class XiaohongshuSource:
 
     async def search(self, query: str, *, execute: Execute | None = None,
                      excluded_ids: frozenset[str] = frozenset(), deadline_at: datetime | None = None,
-                     _body_cache: BodyCache | None = None) -> list[Evidence]:
+                     result_limit: int | None = None, _body_cache: BodyCache | None = None,
+                     _access_failures: list[XiaohongshuError] | None = None) -> list[Evidence]:
         """Search and read fresh bodies, registering candidates and each body separately.
 
         The timeout covers profile-lock waiting and all reads. On failure a
@@ -549,6 +651,9 @@ class XiaohongshuSource:
         query = query.strip()
         if not query or len(query) > 100:
             raise ValueError("小红书搜索关键词须为 1–100 个字符")
+        if result_limit is not None and (isinstance(result_limit, bool) or not isinstance(result_limit, int)
+                                         or not 1 <= result_limit <= 10):
+            raise ValueError("小红书单次读取上限须为 1–10 的整数")
         if deadline_at is not None and (deadline_at.tzinfo is None or deadline_at.utcoffset() is None):
             raise ValueError("小红书查询截止时间必须带时区")
         timeout = min(self.timeout_seconds, (deadline_at - datetime.now(timezone.utc)).total_seconds()
@@ -559,15 +664,22 @@ class XiaohongshuSource:
                 async with self._lock:
                     if self._closed:
                         raise XiaohongshuError("小红书来源已关闭")
+                    if _access_failures:
+                        raise type(_access_failures[0])(str(_access_failures[0])) from None
                     self._owner_task = asyncio.current_task()
                     pages = []
+                    query_pages_ready = False
                     try:
                         context = await self._ensure_context()
-                        search_page, detail_page = await context.new_page(), await context.new_page()
-                        pages = [search_page, detail_page]
+                        search_page = await context.new_page()
+                        pages.append(search_page)
+                        detail_page = await context.new_page()
+                        pages.append(detail_page)
+                        query_pages_ready = True
                         private = {}
                         result = await self._invoke(lambda: self._candidates(search_page, query,
-                            frozenset(identity.lower() for identity in excluded_ids), private), query=True, execute=execute)
+                            frozenset(identity.lower() for identity in excluded_ids), private,
+                            min(result_limit or self.max_results, self.max_results)), query=True, execute=execute)
                         if not result.get("stopped"):
                             for candidate in result["data"][:self.max_results]:
                                 identity = candidate["note_id"]
@@ -592,7 +704,13 @@ class XiaohongshuSource:
                                         item.model_dump(exclude={"evidence_id", "retrieved_at"}), item.retrieved_at,
                                     )
                                 evidence.append(item)
-                    except (Exception, asyncio.CancelledError):
+                    except asyncio.CancelledError:
+                        # Closing query pages stops navigation while preserving the logged-in browser
+                        # for the next claim. Interrupted page/browser creation needs a full reset.
+                        if not query_pages_ready:
+                            await self._reset_browser()
+                        raise
+                    except Exception:
                         await self._reset_browser()
                         raise
                     finally:
@@ -614,6 +732,10 @@ class XiaohongshuSource:
             raise error from None
         except XiaohongshuError as error:
             error.partial_evidence = evidence
+            if (isinstance(error, (XiaohongshuLoginRequired, XiaohongshuAccessRestricted))
+                    and _access_failures is not None and not _access_failures):
+                # Share only the terminal gate within this run, not another Claim's evidence.
+                _access_failures.append(type(error)(str(error)))
             raise
         return evidence
 
@@ -642,13 +764,15 @@ class XiaohongshuSource:
 
 
 class _RunSource:
-    """One run's body cache; candidate search and access checks always use live DOM."""
+    """One run's actual bodies, Claim aliases and terminal gate; physical queries stay guarded."""
 
     def __init__(self, source: XiaohongshuSource):
         self._source = source
         self._body_cache: BodyCache = {}
+        self._claim_notes: dict[str, str] = {}
         self._note_cache: dict[str, LinkMaterial] = {}
         self._input_aliases: dict[str, LinkMaterial] = {}
+        self._access_failures: list[XiaohongshuError] = []
 
     async def read_note(self, url: str, *, deadline_at: datetime | None = None) -> LinkMaterial:
         if url not in self._input_aliases:
@@ -657,9 +781,75 @@ class _RunSource:
         return self._input_aliases[url]
 
     async def search(self, query: str, *, execute: Execute | None = None,
-                     excluded_ids: frozenset[str] = frozenset(), deadline_at: datetime | None = None) -> list[Evidence]:
-        return await self._source.search(query, execute=execute, excluded_ids=excluded_ids,
-                                         deadline_at=deadline_at, _body_cache=self._body_cache)
+                     excluded_ids: frozenset[str] = frozenset(), deadline_at: datetime | None = None,
+                     result_limit: int | None = None, claim_id: str | None = None) -> list[Evidence]:
+        alias_claim = claim_id if type(result_limit) is int and result_limit == 1 else None
+        identity = self._claim_notes.get(alias_claim) if alias_claim else None
+        cached = self._body_cache.get(identity)
+        if cached is not None and identity not in {value.lower() for value in excluded_ids}:
+            # Cached reads keep the physical source's public input and absolute-time contract.
+            if not query.strip() or len(query.strip()) > 100:
+                raise ValueError("小红书搜索关键词须为 1–100 个字符")
+            if result_limit is not None and (isinstance(result_limit, bool) or not isinstance(result_limit, int)
+                                             or not 1 <= result_limit <= 10):
+                raise ValueError("小红书单次读取上限须为 1–10 的整数")
+            if deadline_at is not None and (deadline_at.tzinfo is None or deadline_at.utcoffset() is None):
+                raise ValueError("小红书查询截止时间必须带时区")
+            timeout = min(self._source.timeout_seconds, (deadline_at - datetime.now(timezone.utc)).total_seconds()
+                          if deadline_at is not None else self._source.timeout_seconds)
+            try:
+                async with asyncio.timeout(max(0, timeout)):
+                    async with self._source._lock:
+                        if self._source._closed:
+                            raise XiaohongshuError("小红书来源已关闭")
+                        if self._access_failures:
+                            raise type(self._access_failures[0])(str(self._access_failures[0])) from None
+                        if timeout <= 0 or (deadline_at is not None and datetime.now(timezone.utc) >= deadline_at):
+                            raise TimeoutError
+                        self._source._owner_task = asyncio.current_task()
+                        try:
+                            async def read_body():
+                                return dict(cached[0])
+                            result = await self._source._invoke(read_body, query=False, execute=execute,
+                                                                retrieved_at=cached[1])
+                            data = result.get("data")
+                            if result.get("stopped") or not data or data.get("duplicate"):
+                                return []
+                            item = FactEvidence.model_validate(data)
+                            if (canonical_note_id(item.url) != identity or item.retrieved_at != cached[1]
+                                    or item.model_dump(exclude={"evidence_id", "retrieved_at"}) != cached[0]):
+                                raise XiaohongshuError("已登记的缓存正文与实际小红书材料不一致")
+                            return [item]
+                        finally:
+                            self._source._owner_task = None
+            except TimeoutError:
+                raise XiaohongshuError("小红书缓存正文登记超过限定时间") from None
+        registered = set()
+
+        async def track_read(operation, *, query=False, **kwargs):
+            result = (await self._source._invoke(operation, query=query, execute=None, **kwargs)
+                      if execute is None else await execute(operation, query=query, **kwargs))
+            data = result.get("data")
+            if not query and not result.get("stopped") and not result.get("error") and data and not data.get("duplicate"):
+                identity = data.get("evidence_id")
+                if isinstance(identity, str) and identity.strip():
+                    registered.add(identity)
+            return result
+
+        evidence = await self._source.search(query, execute=track_read if alias_claim else execute,
+                                            excluded_ids=excluded_ids,
+                                            deadline_at=deadline_at, result_limit=result_limit,
+                                            _body_cache=self._body_cache, _access_failures=self._access_failures)
+        if alias_claim:
+            for item in evidence:
+                identity = canonical_note_id(item.url)
+                cached = self._body_cache.get(identity)
+                if (cached is not None and item.evidence_id in registered
+                        and item.retrieved_at == cached[1]
+                        and item.model_dump(exclude={"evidence_id", "retrieved_at"}) == cached[0]):
+                    self._claim_notes[alias_claim] = identity
+                    break
+        return evidence
 
 
 def main(argv: list[str] | None = None) -> int:

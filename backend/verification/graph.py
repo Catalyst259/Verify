@@ -45,6 +45,9 @@ def build_verification_graph(
         result = await extraction.extract(**state["request"].model_dump(),
                                           link_materials=runtime.context.link_materials,
                                           deadline_at=budget.deadline_at if budget else None)
+        if budget is not None:
+            # 类别计划会异步结束；按完整输入预判，不能等后来的类别入队才限制首批。
+            budget.prepare_browser_batch(len(result.claims))
         return {"claims": result.claims, "stage": "extracted"}
 
     def after_extraction(state: VerificationState):
@@ -56,7 +59,22 @@ def build_verification_graph(
         context = state["context"]
         resolver = runtime.context.place_resolver
         if resolver is not None:
-            place = await resolver(context.target_place)
+            budget = runtime.context.run_budget
+            if budget is None:
+                place = await resolver(context.target_place)
+            else:
+                window = asyncio.timeout(remaining(budget.deadline_at))
+                try:
+                    async with window:
+                        if remaining(budget.deadline_at) <= 0:
+                            place = None
+                        else:
+                            place = await resolver(context.target_place)
+                except TimeoutError:
+                    if not window.expired():
+                        raise
+                    logger.warning("Verification context lookup exhausted the original run budget")
+                    place = None
             context = context.model_copy(update={"resolved_place": place})
         return {"context": context, "stage": "context_prepared"}
 
