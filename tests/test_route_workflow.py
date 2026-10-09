@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import pytest
 from datetime import datetime, timezone
 
 from backend.extraction.models import Claim
@@ -9,6 +10,7 @@ from backend.verification.capabilities import Coordinates, RouteResult, Verifica
 from backend.verification.models import PlaceReference, VerificationContext
 from backend.verification.subgraphs.route import build_route_subgraph
 from backend.verification.subgraphs.route.model import RoutePlan
+from backend.verification.subgraphs.route.graph import has_claimed_duration
 
 CHECKED = datetime(2026, 10, 7, 9, 0, 0, tzinfo=timezone.utc)
 EVIDENCE_ID = "c0-r1-0"  # 测量会话生成的首个实测证据标识
@@ -163,3 +165,18 @@ def test_unreachable_route_is_a_measurement_not_an_error():
     assert result.status == "completed"
     assert result.findings[0].assessment.measured_seconds is None
     assert any("不可达" in item.content for item in result.findings[0].evidence)
+
+
+@pytest.mark.parametrize("text", ["断桥 → 白堤 → 苏堤 → 雷峰塔是一条经典步行路线。", "断桥适合作为起点。", "沿湖走 5 公里。"])
+def test_route_without_claimed_time_never_invents_a_measurement_plan(text):
+    async def unexpected(*args):
+        pytest.fail("游览顺序没有时长数值，不能生成时长比对计划")
+
+    result = asyncio.run(build_route_subgraph().ainvoke(inputs(text), context=VerificationCapabilities(
+        llm=unexpected, map_routing=FakeRouting(), subgraph_timeout_seconds=10)))["result"]
+    assert result.status == "skipped" and not result.selected_claim_ids and not result.findings
+
+
+@pytest.mark.parametrize("text", ["步行5分钟", "步行约 1.5 小时", "步行半小时", "步行半个小时", "大约两三分钟", "walking 5 minutes"])
+def test_numeric_and_chinese_duration_claims_remain_eligible(text):
+    assert has_claimed_duration(inputs(text)["claims"][0])

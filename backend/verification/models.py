@@ -197,6 +197,28 @@ class ExperienceAssessment(Assessment):
     source_agreement: FactScore | None
 
 
+def unverified_without_evidence(category: str, plan: BaseModel) -> Assessment:
+    """没有独立材料时由程序生成缺证据判定，避免模型编造引用或实测数字。
+
+    取证错误仍由 Claim 状态保留；此判定只表达没有证据，不能将失败解释为主张错误。
+    """
+    values = dict(target=plan.target, time_scope=plan.time_scope, verdict="UNVERIFIED",
+                  confidence=None, evidence_sufficient=False, reason="未取得可用于核验的独立证据，暂无法形成结论。")
+    if category == "fact":
+        return FactAssessment(**values, dimensions=FactDimensions(**dict.fromkeys(FactDimensions.model_fields)),
+                              remaining_gaps=[FactGap(question=question, preferred_source="WEB",
+                                                      reason="尚未取得回答该问题的独立材料。")
+                                              for question in plan.questions])
+    if category == "route":
+        return RouteAssessment(**values, claimed_seconds=plan.claimed_seconds,
+                               transport_mode=plan.transport_mode, tolerance_seconds=plan.tolerance_seconds)
+    if category == "crowd":
+        return CrowdAssessment(**values, scenario=plan.scenario)
+    if category == "experience":
+        return ExperienceAssessment(**values, source_agreement=None)
+    raise ValueError(f"未知判定类别：{category}")
+
+
 def _assessment_kind(value: object) -> str:
     """判定子类的判别标签；旧数据没有 kind 时按 fact 处理，保住既有 JSON 契约。"""
 

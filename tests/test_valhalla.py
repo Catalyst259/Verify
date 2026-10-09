@@ -14,6 +14,7 @@ STATION = Coordinates(31.2365, 121.4801)
 
 
 def respond(request):
+    assert "+" not in request.url.query.decode(), "Valhalla does not decode form-style spaces in the JSON query"
     body = json.loads(request.url.params["json"])
     if request.url.path == "/route":
         return httpx.Response(200, json={"trip": {"summary": {"time": 312.4, "length": 0.42}}})

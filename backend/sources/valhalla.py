@@ -183,8 +183,8 @@ class ValhallaRouting:
             if self.referer:
                 # The service policy asks scripts to identify the calling application.
                 headers["Referer"] = self.referer
-            # The payload stays on the query string, the form the service documents.
-            response = await client.get(self.base_url + path, params={"json": json.dumps(payload)},
+            # 查询参数的空格会被编码为 +；服务端的 JSON 解码不接受这种空格编码。
+            response = await client.get(self.base_url + path, params={"json": json.dumps(payload, separators=(",", ":"))},
                                         headers=headers, timeout=self.timeout_seconds)
         except httpx.HTTPError as error:
             raise ValhallaError(f"Valhalla 请求失败（{type(error).__name__}）") from None

@@ -18,7 +18,7 @@ from pydantic_core import to_json
 
 from ..budget import BROWSER_CONCURRENCY, remaining
 from ..capabilities import VerificationCapabilities
-from ..models import ClaimFinding, SubgraphResult
+from ..models import ClaimFinding, SubgraphResult, unverified_without_evidence
 from ..state import SubgraphInput, SubgraphOutput
 from .diagnostics import timed
 
@@ -37,6 +37,7 @@ class CategorySpec:
     needs_more 判定是否还要补搜一轮；各子图的缺口表达不同，因此由类别自己决定。
     search_runner 决定本轮取证由谁执行——网页取证、地图调用或别的来源；返回 None 表示本次运行
     不具备该类别的取证能力，骨架会记录为缺证据而不是失败。
+    accepts_claim 排除类别契约无法表达的主张，其余主张仍由 Plan 按内容选择。
     """
 
     name: str
@@ -52,6 +53,7 @@ class CategorySpec:
     check_assessment: Callable[[Any, Any], Any]
     needs_more: Callable[[Any, Runtime, datetime], bool]
     search_runner: Callable[[Runtime], Any] = shared_search
+    accepts_claim: Callable[[Any], bool] = lambda claim: True
 
 
 def build_category_subgraph(spec: CategorySpec):
@@ -77,20 +79,27 @@ def build_category_subgraph(spec: CategorySpec):
                 claims[claim_id] = replace_claim(claims[claim_id], error=message)
         return {"claim_states": claims, "active_claim_ids": [], "error": message}
 
-    async def call_model(state, runtime: Runtime[VerificationCapabilities], step: str) -> str:
+    async def call_model(state, runtime: Runtime[VerificationCapabilities], step: str, *, feedback=None) -> str:
         if remaining(state["deadline_at"]) <= 0:
             raise TimeoutError(f"{spec.name} 已到内部截止时间")
         schema = spec.plan_task if step == "plan" else spec.validate_task
-        task = to_json({key: state[key] for key in schema.__annotations__}).decode()
+        payload = {key: state[key] for key in schema.__annotations__}
+        prompt = spec.load_prompt(step)
+        if feedback is not None:
+            payload["validation_feedback"] = feedback
+            prompt += ("\n\n本次是程序拒绝无效引用后的唯一一次纠正。validation_feedback 记录拒绝原因及每条主张"
+                       "允许引用的 evidence_id。只返回 active_claim_ids 的完整判定，引用必须来自该条主张的"
+                       "allowed_evidence_ids；不能引用其他主张、示例编号或原始输入来源。依据仍不足时返回 UNVERIFIED。")
+        task = to_json(payload).decode()
         async with asyncio.timeout(remaining(state["deadline_at"])):
-            return await runtime.context.llm(spec.load_prompt(step), task)
+            return await runtime.context.llm(prompt, task)
 
     def initialize(state: SubgraphInput, runtime: Runtime[VerificationCapabilities]) -> dict:
         timeout = runtime.context.subgraph_timeout_seconds
         if runtime.context.run_budget is not None:
             timeout = min(timeout, remaining(runtime.context.run_budget.deadline_at))
         return {
-            "selected_claim_ids": [], "active_claim_ids": [claim.claim_id for claim in state["claims"]],
+            "selected_claim_ids": [], "active_claim_ids": [claim.claim_id for claim in state["claims"] if spec.accepts_claim(claim)],
             "claim_states": {}, "notes": [], "diagnostics": [], "error": None,
             # 以共享预算的剩余量为准，在主图硬超时前留出组装和清理时间。
             "deadline_at": datetime.now(timezone.utc) + timedelta(seconds=max(0, timeout - min(5, timeout * 0.1))),
@@ -183,28 +192,66 @@ def build_category_subgraph(spec: CategorySpec):
                 "diagnostics": [*state["diagnostics"], *(note for _, _, notes in updates for note in notes)]}
 
     async def validate(state, runtime: Runtime[VerificationCapabilities]) -> dict:
-        try:
-            results = TypeAdapter(list[spec.validate_type]).validate_json(await call_model(state, runtime, "validate"))
-            check_ids(results, state["active_claim_ids"], complete=True)
-        except Exception as error:
-            return failed(state, "Validate", error)
-
         claims = dict(state["claim_states"])
-        for item in results:
-            old = claims[item.claim_id]
+        model_ids = []
+        for claim_id in state["active_claim_ids"]:
+            old = claims[claim_id]
             if old.error and old.assessment is not None:
-                # 补搜未完成时保留上轮有效判定及本轮已取材料，并明确标记 partial。
+                # 补搜失败时保留上轮有效判定，不能由新输出覆盖。
                 continue
+            if not old.evidence:
+                claims[claim_id] = replace_claim(old, assessment=unverified_without_evidence(spec.name, old.plan))
+            else:
+                model_ids.append(claim_id)
+
+        def apply_results(results):
+            feedback = {}
+            for item in results:
+                old = state["claim_states"][item.claim_id]
+                assessment = item.assessment
+                allowed = {e.evidence_id for e in old.evidence}
+                references = set(assessment.supporting_evidence + assessment.counter_evidence + assessment.context_evidence)
+                try:
+                    if not references <= allowed:
+                        raise ValueError("判定引用了该 Claim 未取得的证据")
+                    claims[item.claim_id] = replace_claim(old, assessment=spec.check_assessment(old, item))
+                except ValueError as error:
+                    claims[item.claim_id] = replace_claim(old, error="; ".join(filter(None, [old.error, f"Validate: {error}"])))
+                    if not references <= allowed:
+                        feedback[item.claim_id] = {"error": "判定引用了该 Claim 未取得的证据",
+                                                   "allowed_evidence_ids": sorted(allowed)}
+            return feedback
+
+        model_state = state | {"claim_states": claims, "active_claim_ids": model_ids}
+        try:
+            results = []
+            if model_ids:
+                results = TypeAdapter(list[spec.validate_type]).validate_json(
+                    await call_model(model_state, runtime, "validate"))
+            check_ids(results, model_ids, complete=True)
+        except Exception as error:
+            return failed(model_state, "Validate", error)
+
+        feedback = apply_results(results)
+        notes = list(state["notes"])
+        if feedback and remaining(state["deadline_at"]) > 0:
+            repair_state = state | {"claim_states": claims, "active_claim_ids": list(feedback)}
             try:
-                claims[item.claim_id] = replace_claim(old, assessment=spec.check_assessment(old, item))
-            except ValueError as error:
-                claims[item.claim_id] = replace_claim(old, error=f"Validate: {error}")
+                corrected = TypeAdapter(list[spec.validate_type]).validate_json(
+                    await call_model(repair_state, runtime, "validate", feedback=feedback))
+                check_ids(corrected, list(feedback), complete=True)
+                apply_results(corrected)
+                notes.extend(f"{claim_id}：判定引用纠正成功。" for claim_id in feedback
+                             if claims[claim_id].assessment is not None and claims[claim_id].error == state["claim_states"][claim_id].error)
+            except Exception as error:
+                for claim_id in feedback:
+                    claims[claim_id] = replace_claim(claims[claim_id], error=f"{claims[claim_id].error}; Validate correction: {type(error).__name__}: {str(error) or '纠正已到截止时间'}")
 
         active = [claim_id for claim_id in state["active_claim_ids"] if (
             claims[claim_id].error is None and claims[claim_id].assessment is not None
             and spec.needs_more(claims[claim_id], runtime, state["deadline_at"])
         )]
-        return {"claim_states": claims, "active_claim_ids": active}
+        return {"claim_states": claims, "active_claim_ids": active, "notes": notes}
 
     def finalize(state) -> SubgraphOutput:
         findings = []

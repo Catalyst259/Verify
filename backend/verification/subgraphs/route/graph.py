@@ -4,6 +4,7 @@
 """
 
 from datetime import datetime
+import re
 
 from langgraph.runtime import Runtime
 
@@ -14,6 +15,13 @@ from .model import RoutePlan, RouteValidateResult
 from .prompts import load_system_prompt
 from .search import RouteSearchSession, run_route_search
 from .state import RouteClaimState, RouteState, PlanState, ValidateState
+
+
+def has_claimed_duration(claim) -> bool:
+    """时长比对必须有原文数值；游览顺序与距离描述不能由模型补出一个时长。"""
+    return bool(re.search(r"(?:\d+(?:\.\d+)?|[零〇一二两三四五六七八九十百千万半]+)\s*个?\s*"
+                          r"(?:秒(?:钟)?|分钟?|小时|钟头|刻钟|seconds?\b|secs?\b|minutes?\b|mins?\b|hours?\b|hrs?\b)",
+                          claim.content, flags=re.IGNORECASE))
 
 
 def check_plan(old: RouteClaimState, plan: RoutePlan) -> None:
@@ -96,6 +104,7 @@ ROUTE_SPEC = CategorySpec(
     check_assessment=check_assessment,
     needs_more=needs_more,
     search_runner=route_search_runner,
+    accepts_claim=has_claimed_duration,
 )
 
 

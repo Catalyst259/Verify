@@ -6,7 +6,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
 import pytest
 
-from backend.extraction.models import ClaimExtractionResult
+from backend.extraction.models import Claim, ClaimExtractionResult
 from backend.storage.repository import StorageRepository
 from backend.verification.capabilities import VerificationCapabilities
 from backend.verification.models import (
@@ -132,9 +132,14 @@ def test_empty_claims_skip_context_and_subgraphs(tmp_path):
     assert run.subgraph_results == {}
 
 
-def test_default_registry_runs_all_four_category_subgraphs(tmp_path):
+@pytest.mark.parametrize("with_duration", [False, True])
+def test_default_registry_runs_all_four_category_subgraphs(tmp_path, with_duration):
     async def extract(*args):
-        return extracted()
+        result = extracted()
+        if with_duration:
+            result.claims.append(Claim(claim_id="c", type="ROUTE", content="步行5分钟到公园。", sources=[
+                {"source_type": "TEXT", "source_ref": None, "source_text": "步行5分钟到公园。"}]))
+        return result
 
     calls = []
 
@@ -143,11 +148,12 @@ def test_default_registry_runs_all_four_category_subgraphs(tmp_path):
         return "[]"
 
     verification = service(tmp_path, extract, capabilities=VerificationCapabilities(llm=skip_model))
-    run = asyncio.run(verification.run(VerificationInput(target_place="公园", text="免费开放，周末游客少")))
+    text = "免费开放，周末游客少" + ("；步行5分钟到公园。" if with_duration else "")
+    run = asyncio.run(verification.run(VerificationInput(target_place="公园", text=text)))
     assert set(run.subgraph_results) == {"fact", "route", "crowd", "experience"}
     assert all(run.subgraph_results[name].status == "skipped" for name in run.subgraph_results)
-    # 四类子图各规划一轮；模型未选出主张时不再进入取证与判定。
-    assert len(calls) == 4
+    # 四类子图仍注册；没有时长时 ROUTE 不调用模型补出测量主张。
+    assert len(calls) == (4 if with_duration else 3)
     assert all(prompt.splitlines()[0].endswith("Plan") for prompt in calls)
     with pytest.raises(NotImplementedError, match="尚未接入"):
         asyncio.run(verification.capabilities.evidence_sources["web_search"].search("公园"))

@@ -7,7 +7,7 @@ import json
 import pytest
 
 from backend.verification.subgraphs.facts import search
-from test_fact_workflow import assessment, make_plan, new_session, run
+from test_fact_workflow import assessment, make_plan, new_session, read, run
 
 
 @pytest.mark.parametrize("status,challenge,ready,empty,category", [
@@ -179,7 +179,11 @@ def test_validate_timeout_has_elapsed_time_and_keeps_prior_stage_timings():
             return json.dumps([make_plan("c0")])
         await asyncio.sleep(1)
 
-    result = run(model, timeout=0.05)
+    async def collect(session, *args):
+        await read(session)
+        return session.result().model_dump_json()
+
+    result = run(model, collect, timeout=0.05)
     records = [json.loads(note) for note in result.notes if note.startswith('{"event":')]
     timings = {record["stage"]: record for record in records if record["event"] == "stage_timing"}
     assert {"plan", "search", "validate"} <= timings.keys()

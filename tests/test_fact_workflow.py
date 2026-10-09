@@ -193,11 +193,11 @@ def test_empty_search_stops_after_two_rounds_and_missing_capability_skips_retry(
         return session.result().model_dump_json()
 
     result = run(model, empty)
-    assert len(calls) == 4 and result.status == "completed"
+    assert len(calls) == 2 and result.status == "completed"
     assert result.findings[0].assessment.remaining_gaps and result.findings[0].error is None
     calls.clear()
     result = run(model)
-    assert len(calls) == 2 and result.status == "completed"
+    assert len(calls) == 1 and result.status == "completed"
     assert "未提供搜索能力" in result.notes[0]
 
 
